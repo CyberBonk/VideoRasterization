@@ -1,4 +1,5 @@
 from pathlib import Path
+# import imageio_ffmpeg
 
 def _clean_path_text(text: str) -> str:
     t = text.strip().strip("'\"")
@@ -8,7 +9,7 @@ def _clean_path_text(text: str) -> str:
 
 def get_input_video_path(allowed_exts: set[str]) -> Path:
     while True:
-        print("Enter path to input video (drag-and-drop is fine):")
+        print("Enter path to input video:")
         ptxt = _clean_path_text(input("> "))
         if not ptxt:
             print("[warn] empty input. try again.")
@@ -25,4 +26,8 @@ def get_input_video_path(allowed_exts: set[str]) -> Path:
             exts = ", ".join(sorted(allowed_exts))
             print(f"[warn] unsupported extension '{p.suffix}'. allowed: {exts}")
             continue
+
+        # # confirm that imageio-ffmpeg can find its ffmpeg binary
+        # ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+        # print(f"[ok] Found bundled FFmpeg at: {ffmpeg_path}")
         return p
