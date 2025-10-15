@@ -1,0 +1,7 @@
+# ignore junk
+__pycache__/
+.venv/
+.idea/
+.vscode/
+frames/
+color/
