@@ -16,6 +16,16 @@ from pathlib import Path
 import sys
 import imageio_ffmpeg
 
+# ---- force full CPU usage for BLAS backends (set before torch import) ----
+import os
+import multiprocessing as mp
+LOGICAL = mp.cpu_count() or 8
+os.environ.setdefault("OMP_NUM_THREADS", str(LOGICAL))
+os.environ.setdefault("MKL_NUM_THREADS", str(LOGICAL))
+os.environ.setdefault("OPENBLAS_NUM_THREADS", str(LOGICAL))
+os.environ.setdefault("NUMEXPR_NUM_THREADS", str(LOGICAL))
+
+
 # make repo root importable (portable on any machine)
 ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
@@ -73,12 +83,8 @@ def main() -> None:
     # -----------------------------
     zhang_variant = None
     preview = False
-    use_gpu = False  # set True if you want to try CUDA later
+    use_gpu = True # set True if you want to try CUDA later
 
-    if model_name == "colorize_zhang":
-        inference_options = import_module("tools.inference_options")
-        zhang_variant = inference_options.choose_zhang_variant()  # returns "eccv16" or "siggraph17"
-        preview = inference_options.ask_preview()                 # True/False
 
     # -----------------------------
     # 4) COLORIZE: run the chosen model on the frames
@@ -95,13 +101,20 @@ def main() -> None:
 
     model_selector.run_colorizer(
         model_name=model_name,
-        frames_dir=frames_dir,
+        frames_dir=frames_path,
         color_dir=color_dir,
         models_dir=ROOT / "models",
-        zhang_variant=zhang_variant,
-        preview=preview,
-        use_gpu=use_gpu,
+        zhang_variant=zhang_variant,  # selector maps to 'variant'
+        preview=False,
+        use_gpu=False,  # CPU path
+        batch_size=None,  # auto from threads
+        num_threads=None,  # auto = logical cores
+        input_size=256,  # 224 speeds up a bit if you want
+        progress=True,
+        prefetch_workers=None,  # auto (≈ threads/2, capped)
+        save_workers=4,  # try 0, 2, or 4 depending on disk
     )
+
     print(f"[ok] colorization complete: {color_dir}")
 
     # -----------------------------
@@ -114,6 +127,25 @@ def main() -> None:
     # TODO: call tools.FFmpeg.FFmpeg_utilization.rebuild_video(...)
 
     print("[done] pipeline finished.")
+
+    # 5) one-shot report (PNG + JSON)
+    report = import_module("tools.preview_report")
+    reports_dir = ROOT / "reports"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+
+    report_png = reports_dir / "report.png"
+    report_json = reports_dir / "report.json"
+
+    try:
+        report.generate_report(
+            frames_gray_dir=frames_path,
+            frames_color_dir=color_dir,
+            out_png=report_png,
+            out_json=report_json,
+        )
+        print(f"[ok] report saved:\n - {report_png}\n - {report_json}")
+    except Exception as e:
+        print(f"[warn] report failed: {e}")
 
 
 if __name__ == "__main__":

@@ -9,7 +9,3 @@ def choose_zhang_variant() -> Literal["eccv16", "siggraph17"]:
     if ans == "1":
         return "eccv16"
     return "siggraph17"
-
-def ask_preview() -> bool:
-    ans = input("Show preview windows (y/N)? ").strip().lower()
-    return ans in {"y", "yes"}
