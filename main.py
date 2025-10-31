@@ -8,6 +8,7 @@
 #   4) run colorization (optimized CPU or GPU)
 #   5) temporal smoothing (ONNX / NumPy)
 #   6) generate report
+#   7) rebuild final video output
 
 from importlib import import_module
 from pathlib import Path
@@ -44,6 +45,7 @@ input_selector = import_module("tools.input_selector")
 ffmpeg_tools = import_module("tools.FFmpeg.FFmpeg_utilization")
 model_selector = import_module("tools.model_selector")
 report = import_module("tools.preview_report")
+from tools.FFmpeg.rebuild_video import build_video_from_frames
 
 # --------------------------------------------------------------------
 # --- 2) Helper functions --------------------------------------------
@@ -146,6 +148,29 @@ def generate_report(frames_gray_dir: Path, frames_color_dir: Path):
     except Exception as e:
         print(f"[warn] report failed: {e}")
 
+
+def rebuild_video_output(
+    color_dir: Path,
+    smooth_dir: Path | None,
+    source_video: Path,
+    fps: int = 24,
+) -> None:
+    final_frames = smooth_dir if smooth_dir and smooth_dir.exists() else color_dir
+    label = "smoothed" if smooth_dir and final_frames == smooth_dir else "colorized"
+
+    default_output = source_video.with_name(f"{source_video.stem}_{label}.mp4")
+    try:
+        build_video_from_frames(
+            frames_dir=str(final_frames),
+            output_path=str(default_output),
+            codec="h264",
+            fps=fps,
+            prefer_gpu=True,
+        )
+        print(f"[ok] video rebuild saved: {default_output}")
+    except Exception as e:
+        print(f"[warn] video rebuild failed: {e}")
+
 # --------------------------------------------------------------------
 # --- 3) Main pipeline -----------------------------------------------
 # --------------------------------------------------------------------
@@ -170,6 +195,7 @@ def main():
     color_dir = run_colorization(frames_dir, model_name, use_gpu)
     smooth_dir = apply_temporal_smoothing_step(color_dir, window_size)
     generate_report(frames_gray_dir=frames_dir, frames_color_dir=color_dir)
+    rebuild_video_output(color_dir=color_dir, smooth_dir=smooth_dir, source_video=video_path, fps=24)
 
     print("[done] pipeline finished.")
     print("=== End ===")

@@ -1,0 +1,8 @@
+torch>=2.3,<2.6
+imageio-ffmpeg>=0.5
+numpy>=1.26
+scikit-image>=0.22
+matplotlib>=3.8
+opencv-python>=4.10
+Pillow>=10.3
+ipython>=8.26
