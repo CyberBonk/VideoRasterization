@@ -1,74 +1,75 @@
 # main.py
 # role:
-# - central runner that calls the other modules
-# - all user choices happen here (so a future GUI can reuse the same logic)
-#
+#   orchestrates the full video colorization pipeline
 # flow:
-#   1) ask user for input video (tools.input_selector)
-#   2) extract frames + audio to temp/ (tools.FFmpeg.FFmpeg_utilization)
-#   3) pick AI model (tools.model_selector)  ← scans tools/AImodels
-#      - if model is Zhang, also ask for variant + preview (tools.inference_options)
-#   4) run colorizer (tools.model_selector.run_colorizer)
-#   5) (optional next steps: smoothing, rebuild video) – add later
+#   1) select input video
+#   2) extract frames via FFmpeg
+#   3) choose AI model (Zhang)
+#   4) run colorization (optimized CPU or GPU)
+#   5) generate report
 
 from importlib import import_module
 from pathlib import Path
-import sys
+import sys, os, multiprocessing as mp
 import imageio_ffmpeg
+import torch
 
-# ---- force full CPU usage for BLAS backends (set before torch import) ----
-import os
-import multiprocessing as mp
+# --------------------------------------------------------------------
+# --- 0) Environment setup for max CPU performance -------------------
+# --------------------------------------------------------------------
 LOGICAL = mp.cpu_count() or 8
-os.environ.setdefault("OMP_NUM_THREADS", str(LOGICAL))
-os.environ.setdefault("MKL_NUM_THREADS", str(LOGICAL))
-os.environ.setdefault("OPENBLAS_NUM_THREADS", str(LOGICAL))
-os.environ.setdefault("NUMEXPR_NUM_THREADS", str(LOGICAL))
+os.environ["OMP_NUM_THREADS"] = str(LOGICAL)
+os.environ["MKL_NUM_THREADS"] = str(LOGICAL)
+os.environ["OPENBLAS_NUM_THREADS"] = str(LOGICAL)
+os.environ["NUMEXPR_NUM_THREADS"] = str(LOGICAL)
 
+torch.set_num_threads(LOGICAL // 2)
+torch.set_num_interop_threads(LOGICAL // 2)
 
-# make repo root importable (portable on any machine)
+# Optional Intel oneDNN/IPEX detection
+try:
+    import intel_extension_for_pytorch as ipex
+    HAS_IPEX = True
+except ImportError:
+    HAS_IPEX = False
+
+# --------------------------------------------------------------------
+# --- 1) Import helpers ----------------------------------------------
+# --------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+input_selector = import_module("tools.input_selector")
+ffmpeg_tools = import_module("tools.FFmpeg.FFmpeg_utilization")
+model_selector = import_module("tools.model_selector")
+report = import_module("tools.preview_report")
 
-def main() -> None:
-    # -----------------------------
-    # 1) INPUT: pick the video file
-    #    who: tools.input_selector.get_input_video_path
-    # -----------------------------
+# --------------------------------------------------------------------
+# --- 2) main pipeline -----------------------------------------------
+# --------------------------------------------------------------------
+def main():
+
+    # ----- INPUT -----
     VIDEO_EXTS = {".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v"}
-    input_selector = import_module("tools.input_selector")
     video_path = input_selector.get_input_video_path(allowed_exts=VIDEO_EXTS)
     if not video_path:
         print("[error] no video selected. exiting.")
         return
     print(f"[ok] selected video: {video_path}")
 
-    # -----------------------------
-    # 2) EXTRACT: frames (and audio if you do that inside your FFmpeg module)
-    #    who: tools.FFmpeg.FFmpeg_utilization.extract_frames
-    #    note: we pass a known ffmpeg path (bundled or system)
-    # -----------------------------
+    # ----- EXTRACT -----
     temp_root = ROOT / "temp"
     temp_root.mkdir(parents=True, exist_ok=True)
+    ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
 
-    ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()  # or use your bundled one
-    ffmpeg_tools = import_module("tools.FFmpeg.FFmpeg_utilization")
-
-    # expected return: Path to frames folder (e.g., temp/frames_YYYYmmdd/000001.png ...)
     frames_dir = ffmpeg_tools.extract_frames(ffmpeg_path, video_path, temp_root)
     if not frames_dir or not Path(frames_dir).exists():
         print("[error] failed to extract frames. exiting.")
         return
     print(f"[ok] extracted frames dir: {frames_dir}")
 
-    # -----------------------------
-    # 3) MODEL CHOICE: pick available AI model by scanning tools/AImodels
-    #    who: tools.model_selector.select_model
-    #    rule: if only one model present → auto-pick; if none → error
-    # -----------------------------
-    model_selector = import_module("tools.model_selector")
+    # ----- MODEL -----
     models_root = ROOT / "tools" / "AImodels"
     model_name = model_selector.select_model(models_root)
     if not model_name:
@@ -76,63 +77,54 @@ def main() -> None:
         return
     print(f"[ok] selected model: {model_name}")
 
-    # -----------------------------
-    # 3.1) MODEL-SPECIFIC OPTIONS (still chosen in main.py)
-    #      example: Zhang has two variants (eccv16 / siggraph17) and optional preview
-    #      who: tools.inference_options
-    # -----------------------------
     zhang_variant = None
-    preview = False
-    use_gpu = True # set True if you want to try CUDA later
+    use_gpu = torch.cuda.is_available()
+    print(f"[info] GPU available: {use_gpu}")
 
+    # ----- SETTINGS -----
+    try:
+        window_size = int(input("Enter temporal smoothing window (odd number, default=9): ") or 9)
+        if window_size % 2 == 0:
+            window_size -= 1
+        if window_size < 3:
+            window_size = 3
+        print(f"[info] using temporal window size: {window_size}")
+    except Exception:
+        window_size = 9
+        print("[warn] invalid input, using default window size 9.")
 
-    # -----------------------------
-    # 4) COLORIZE: run the chosen model on the frames
-    #    who: tools.model_selector.run_colorizer
-    #    params:
-    #      - frames_dir: where PNGs live
-    #      - color_dir: where colored PNGs go
-    #      - models_dir: keep for API consistency (unused by PyTorch Zhang)
-    #      - zhang_variant / preview / use_gpu: optional args handled by model if supported
-    # -----------------------------
+    # ----- COLORIZE -----
     frames_path = Path(frames_dir)
     color_dir = frames_path.parent / f"{frames_path.name}_colorized"
     color_dir.mkdir(parents=True, exist_ok=True)
+
+    # if IPEX is installed, prepare optimization
+    if HAS_IPEX and not use_gpu:
+        print("[info] optimizing model via Intel IPEX oneDNN backend...")
+        ipex.enable_onednn_fusion(True)
+        ipex.set_fp32_math_mode(mode="BF16")
 
     model_selector.run_colorizer(
         model_name=model_name,
         frames_dir=frames_path,
         color_dir=color_dir,
         models_dir=ROOT / "models",
-        zhang_variant=zhang_variant,  # selector maps to 'variant'
+        zhang_variant=zhang_variant,
         preview=False,
-        use_gpu=False,  # CPU path
-        batch_size=None,  # auto from threads
-        num_threads=None,  # auto = logical cores
-        input_size=256,  # 224 speeds up a bit if you want
+        use_gpu=use_gpu,
+        batch_size=12,
+        num_threads=LOGICAL,
+        input_size=224,
         progress=True,
-        prefetch_workers=None,  # auto (≈ threads/2, capped)
-        save_workers=4,  # try 0, 2, or 4 depending on disk
+        prefetch_workers=LOGICAL // 4,
+        save_workers=2,
     )
 
     print(f"[ok] colorization complete: {color_dir}")
 
-    # -----------------------------
-    # 5) NEXT STEPS (placeholders)
-    #    - temporal smoothing module
-    #    - rebuild video with FFmpeg (merge color_dir + audio → output.mp4)
-    #    we will add them later so main.py stays the single caller.
-    # -----------------------------
-    # TODO: call tools.temporal.smooth_sequence(color_dir, alpha=?)
-    # TODO: call tools.FFmpeg.FFmpeg_utilization.rebuild_video(...)
-
-    print("[done] pipeline finished.")
-
-    # 5) one-shot report (PNG + JSON)
-    report = import_module("tools.preview_report")
+    # ----- REPORT -----
     reports_dir = ROOT / "reports"
     reports_dir.mkdir(parents=True, exist_ok=True)
-
     report_png = reports_dir / "report.png"
     report_json = reports_dir / "report.json"
 
@@ -146,6 +138,8 @@ def main() -> None:
         print(f"[ok] report saved:\n - {report_png}\n - {report_json}")
     except Exception as e:
         print(f"[warn] report failed: {e}")
+
+    print("[done] pipeline finished.")
 
 
 if __name__ == "__main__":
