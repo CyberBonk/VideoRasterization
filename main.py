@@ -6,7 +6,8 @@
 #   2) extract frames via FFmpeg
 #   3) choose AI model (Zhang)
 #   4) run colorization (optimized CPU or GPU)
-#   5) generate report
+#   5) optional temporal smoothing (ONNX / NumPy)
+#   6) generate report
 
 from importlib import import_module
 from pathlib import Path
@@ -45,43 +46,12 @@ ffmpeg_tools = import_module("tools.FFmpeg.FFmpeg_utilization")
 model_selector = import_module("tools.model_selector")
 report = import_module("tools.preview_report")
 
+
 # --------------------------------------------------------------------
-# --- 2) main pipeline -----------------------------------------------
+# --- 2) Helper functions --------------------------------------------
 # --------------------------------------------------------------------
-def main():
-
-    # ----- INPUT -----
-    VIDEO_EXTS = {".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v"}
-    video_path = input_selector.get_input_video_path(allowed_exts=VIDEO_EXTS)
-    if not video_path:
-        print("[error] no video selected. exiting.")
-        return
-    print(f"[ok] selected video: {video_path}")
-
-    # ----- EXTRACT -----
-    temp_root = ROOT / "temp"
-    temp_root.mkdir(parents=True, exist_ok=True)
-    ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
-
-    frames_dir = ffmpeg_tools.extract_frames(ffmpeg_path, video_path, temp_root)
-    if not frames_dir or not Path(frames_dir).exists():
-        print("[error] failed to extract frames. exiting.")
-        return
-    print(f"[ok] extracted frames dir: {frames_dir}")
-
-    # ----- MODEL -----
-    models_root = ROOT / "tools" / "AImodels"
-    model_name = model_selector.select_model(models_root)
-    if not model_name:
-        print("[error] no AI models found. exiting.")
-        return
-    print(f"[ok] selected model: {model_name}")
-
-    zhang_variant = None
-    use_gpu = torch.cuda.is_available()
-    print(f"[info] GPU available: {use_gpu}")
-
-    # ----- SETTINGS -----
+def ask_temporal_window() -> int:
+    """Ask user for temporal smoothing window (odd number)."""
     try:
         window_size = int(input("Enter temporal smoothing window (odd number, default=9): ") or 9)
         if window_size % 2 == 0:
@@ -92,13 +62,43 @@ def main():
     except Exception:
         window_size = 9
         print("[warn] invalid input, using default window size 9.")
+    return window_size
 
-    # ----- COLORIZE -----
-    frames_path = Path(frames_dir)
+
+def select_input_video() -> Path | None:
+    VIDEO_EXTS = {".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v"}
+    video_path = input_selector.get_input_video_path(allowed_exts=VIDEO_EXTS)
+    if not video_path:
+        print("[error] no video selected. exiting.")
+        return None
+    print(f"[ok] selected video: {video_path}")
+    return Path(video_path)
+
+
+def extract_frames(video_path: Path, temp_root: Path) -> Path | None:
+    ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+    frames_dir = ffmpeg_tools.extract_frames(ffmpeg_path, video_path, temp_root)
+    if not frames_dir or not Path(frames_dir).exists():
+        print("[error] failed to extract frames. exiting.")
+        return None
+    print(f"[ok] extracted frames dir: {frames_dir}")
+    return Path(frames_dir)
+
+
+def select_model(models_root: Path) -> str | None:
+    model_name = model_selector.select_model(models_root)
+    if not model_name:
+        print("[error] no AI models found. exiting.")
+        return None
+    print(f"[ok] selected model: {model_name}")
+    return model_name
+
+
+def run_colorization(frames_path: Path, model_name: str, use_gpu: bool) -> Path:
+    """Run the Zhang colorization model."""
     color_dir = frames_path.parent / f"{frames_path.name}_colorized"
     color_dir.mkdir(parents=True, exist_ok=True)
 
-    # if IPEX is installed, prepare optimization
     if HAS_IPEX and not use_gpu:
         print("[info] optimizing model via Intel IPEX oneDNN backend...")
         ipex.enable_onednn_fusion(True)
@@ -109,7 +109,7 @@ def main():
         frames_dir=frames_path,
         color_dir=color_dir,
         models_dir=ROOT / "models",
-        zhang_variant=zhang_variant,
+        zhang_variant=None,
         preview=False,
         use_gpu=use_gpu,
         batch_size=12,
@@ -121,8 +121,28 @@ def main():
     )
 
     print(f"[ok] colorization complete: {color_dir}")
+    return color_dir
 
-    # ----- REPORT -----
+
+def apply_temporal_smoothing_step(color_dir: Path, window_size: int) -> Path:
+    """Run temporal smoothing on the colorized frames."""
+    from tools.TemporalSmoothing import apply_temporal_smoothing
+
+    smooth_dir = color_dir.parent / f"{color_dir.name}_TemporalSmoothed"
+    smooth_dir.mkdir(parents=True, exist_ok=True)
+
+    apply_temporal_smoothing(
+        input_folder=color_dir,
+        output_folder=smooth_dir,
+        use_onnx=True,  # set False to skip ONNXRuntime
+        window_size=window_size,
+    )
+    print(f"[ok] temporal smoothing complete: {smooth_dir}")
+    return smooth_dir
+
+
+def generate_report(frames_gray_dir: Path, frames_color_dir: Path) -> None:
+    """Generate image and JSON comparison report."""
     reports_dir = ROOT / "reports"
     reports_dir.mkdir(parents=True, exist_ok=True)
     report_png = reports_dir / "report.png"
@@ -130,8 +150,8 @@ def main():
 
     try:
         report.generate_report(
-            frames_gray_dir=frames_path,
-            frames_color_dir=color_dir,
+            frames_gray_dir=frames_gray_dir,
+            frames_color_dir=frames_color_dir,
             out_png=report_png,
             out_json=report_json,
         )
@@ -139,8 +159,53 @@ def main():
     except Exception as e:
         print(f"[warn] report failed: {e}")
 
+
+# --------------------------------------------------------------------
+# --- 3) Main orchestrator -------------------------------------------
+# --------------------------------------------------------------------
+def main():
+    print("=== VideoRasterization pipeline start ===")
+
+    temp_root = ROOT / "temp"
+    temp_root.mkdir(parents=True, exist_ok=True)
+
+    # Ask for temporal window
+    window_size = ask_temporal_window()
+
+    # Select input video
+    video_path = select_input_video()
+    if not video_path:
+        return
+
+    # Extract frames
+    frames_dir = extract_frames(video_path, temp_root)
+    if not frames_dir:
+        return
+
+    # Choose model
+    model_name = select_model(ROOT / "tools" / "AImodels")
+    if not model_name:
+        return
+
+    # Detect GPU
+    use_gpu = torch.cuda.is_available()
+    print(f"[info] GPU available: {use_gpu}")
+
+    # Run colorization
+    color_dir = run_colorization(frames_dir, model_name, use_gpu)
+
+    # Apply temporal smoothing
+    smooth_dir = apply_temporal_smoothing_step(color_dir, window_size)
+
+    # Generate report
+    generate_report(frames_gray_dir=frames_dir, frames_color_dir=color_dir)
+
     print("[done] pipeline finished.")
+    print("=== End ===")
 
 
+# --------------------------------------------------------------------
+# --- 4) Entry point -------------------------------------------------
+# --------------------------------------------------------------------
 if __name__ == "__main__":
     main()
