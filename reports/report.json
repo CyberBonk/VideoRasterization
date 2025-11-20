@@ -1,11 +1,11 @@
 {
-  "frames_gray_dir": "C:\\Users\\bebo\\Documents\\GitHub\\VideoRasterization\\temp\\20251016_225924\\frames",
-  "frames_color_dir": "C:\\Users\\bebo\\Documents\\GitHub\\VideoRasterization\\temp\\20251016_225924\\frames_colorized",
-  "num_frames": 828,
+  "frames_gray_dir": "C:\\Users\\bebo\\Documents\\GitHub\\VideoRasterization\\temp\\20251120_205545\\frames",
+  "frames_color_dir": "C:\\Users\\bebo\\Documents\\GitHub\\VideoRasterization\\temp\\20251120_205545\\frames_colorized",
+  "num_frames": 916,
   "mean_rgb": {
-    "r": 126.71087698247949,
-    "g": 130.77159335837314,
-    "b": 134.40067409487853
+    "r": 79.06480026904046,
+    "g": 101.4706078805419,
+    "b": 134.0235192024122
   },
   "saturation_histogram": {
     "bins": 40,
