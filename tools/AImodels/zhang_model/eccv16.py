@@ -2,9 +2,12 @@
 import torch
 import torch.nn as nn
 import numpy as np
+from pathlib import Path
 from IPython import embed
 
 from .base_color import *
+
+DATASETS_DIR = Path(__file__).resolve().parent.parent / "DataSets"
 
 class ECCVGenerator(BaseColor):
     def __init__(self, norm_layer=nn.BatchNorm2d):
@@ -100,6 +103,20 @@ class ECCVGenerator(BaseColor):
 def eccv16(pretrained=True):
 	model = ECCVGenerator()
 	if(pretrained):
-		import torch.utils.model_zoo as model_zoo
-		model.load_state_dict(model_zoo.load_url('https://colorizers.s3.us-east-2.amazonaws.com/colorization_release_v2-9b330a0b.pth',map_location='cpu',check_hash=True))
+		paths = [
+			DATASETS_DIR / "eccv16.pth",
+			DATASETS_DIR / "colorization_release_v2-9b330a0b.pth",
+		]
+		loaded = False
+		for p in paths:
+			if p.is_file():
+				state = torch.load(p, map_location="cpu")
+				if isinstance(state, dict) and "state_dict" in state:
+					state = state["state_dict"]
+				model.load_state_dict(state)
+				loaded = True
+				break
+		if not loaded:
+			import torch.utils.model_zoo as model_zoo
+			model.load_state_dict(model_zoo.load_url('https://colorizers.s3.us-east-2.amazonaws.com/colorization_release_v2-9b330a0b.pth',map_location='cpu',check_hash=True))
 	return model

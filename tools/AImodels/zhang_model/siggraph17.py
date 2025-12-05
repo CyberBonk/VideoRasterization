@@ -1,7 +1,10 @@
 import torch
 import torch.nn as nn
+from pathlib import Path
 
 from .base_color import *
+
+DATASETS_DIR = Path(__file__).resolve().parent.parent / "DataSets"
 
 class SIGGRAPHGenerator(BaseColor):
     def __init__(self, norm_layer=nn.BatchNorm2d, classes=529):
@@ -160,9 +163,23 @@ class SIGGRAPHGenerator(BaseColor):
         return self.unnormalize_ab(out_reg)
 
 def siggraph17(pretrained=True):
-    model = SIGGRAPHGenerator()
-    if(pretrained):
-        import torch.utils.model_zoo as model_zoo
-        model.load_state_dict(model_zoo.load_url('https://colorizers.s3.us-east-2.amazonaws.com/siggraph17-df00044c.pth',map_location='cpu',check_hash=True))
-    return model
+	model = SIGGRAPHGenerator()
+	if(pretrained):
+		paths = [
+			DATASETS_DIR / "siggraph17-df00044c.pth",
+			DATASETS_DIR / "siggraph17.pth",
+		]
+		loaded = False
+		for p in paths:
+			if p.is_file():
+				state = torch.load(p, map_location="cpu")
+				if isinstance(state, dict) and "state_dict" in state:
+					state = state["state_dict"]
+				model.load_state_dict(state)
+				loaded = True
+				break
+		if not loaded:
+			import torch.utils.model_zoo as model_zoo
+			model.load_state_dict(model_zoo.load_url('https://colorizers.s3.us-east-2.amazonaws.com/siggraph17-df00044c.pth',map_location='cpu',check_hash=True))
+	return model
 

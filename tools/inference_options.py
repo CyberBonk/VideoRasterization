@@ -1,4 +1,5 @@
-from typing import Literal
+from typing import Literal, Sequence
+
 
 def choose_zhang_variant() -> Literal["eccv16", "siggraph17"]:
     print("Choose the Zhang model format:")
@@ -9,3 +10,20 @@ def choose_zhang_variant() -> Literal["eccv16", "siggraph17"]:
     if ans == "1":
         return "eccv16"
     return "siggraph17"
+
+
+def choose_colorization_model(available: Sequence[str]) -> str:
+    if not available:
+        return "colorize_zhang"
+    print("Choose AI model backend:")
+    for i, name in enumerate(available, 1):
+        print(f"{i}) {name}")
+    ans = input(f"number (default [1]): ").strip()
+    if not ans:
+        return available[0]
+    try:
+        idx = int(ans) - 1
+        return available[idx]
+    except Exception:
+        print("[warn] invalid choice; using first.")
+        return available[0]

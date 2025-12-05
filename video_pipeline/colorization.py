@@ -8,6 +8,11 @@ from .env import HAS_IPEX, LOGICAL, ipex
 model_selector = import_module("tools.model_selector")
 
 ROOT = Path(__file__).resolve().parent.parent
+INST_MODEL_NAMES = {
+    "instcolorization2025",
+    "inst_colorization",
+    "colorize_instcolorization2025",
+}
 
 
 def run_colorization(frames_path: Path, model_name: str, use_gpu: bool) -> Path:
@@ -22,21 +27,37 @@ def run_colorization(frames_path: Path, model_name: str, use_gpu: bool) -> Path:
         except Exception:
             pass
 
-    model_selector.run_colorizer(
-        model_name=model_name,
-        frames_dir=frames_path,
-        color_dir=color_dir,
-        models_dir=ROOT / "models",
-        zhang_variant=None,
-        preview=False,
-        use_gpu=use_gpu,
-        batch_size=12,
-        num_threads=LOGICAL,
-        input_size=224,
-        progress=True,
-        prefetch_workers=LOGICAL // 4,
-        save_workers=2,
-    )
+    if model_name in INST_MODEL_NAMES:
+        from tools.AImodels.instcolorization2025.inst_backend import colorize_frames_inst
+
+        frame_paths = [
+            p
+            for p in sorted(frames_path.glob("*"))
+            if p.suffix.lower() in {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
+        ]
+        colorize_frames_inst(
+            frame_paths=frame_paths,
+            output_dir=color_dir,
+            style="siggraph17",
+            device="cuda" if use_gpu else None,
+            image_size=256,
+        )
+    else:
+        model_selector.run_colorizer(
+            model_name=model_name,
+            frames_dir=frames_path,
+            color_dir=color_dir,
+            models_dir=ROOT / "models",
+            zhang_variant=None,
+            preview=False,
+            use_gpu=use_gpu,
+            batch_size=12,
+            num_threads=LOGICAL,
+            input_size=224,
+            progress=True,
+            prefetch_workers=LOGICAL // 4,
+            save_workers=2,
+        )
     print(f"[ok] colorization complete: {color_dir}")
     return color_dir
 

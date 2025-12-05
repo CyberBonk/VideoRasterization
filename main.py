@@ -30,6 +30,7 @@ from video_pipeline.smoothing import apply_temporal_smoothing_step
 from video_pipeline.window_prompt import ask_temporal_window
 from video_pipeline.reporting import generate_report
 from video_pipeline.reconstruction import rebuild_video_output
+from tools import model_selector, inference_options
 
 # --------------------------------------------------------------------
 # --- 2) Main pipeline -----------------------------------------------
@@ -48,8 +49,10 @@ def main():
     if not frames_dir:
         return
 
+    available_models = model_selector.scan_available_models(ROOT / "tools" / "AImodels")
+    model_name = inference_options.choose_colorization_model(available_models)
 
-    model_name = "colorize_zhang"
+
     use_gpu = torch.cuda.is_available()
     print(f"[info] GPU available: {use_gpu}")
     window_size = ask_temporal_window()
