@@ -8,7 +8,7 @@ def colorize_dir(
     frames_dir: Path,
     out_dir: Path,
     models_dir: Optional[Path] = None,
-    style: str = "siggraph17",
+    style: str = "eccv16",
     preview: bool = False,
     use_gpu: bool = False,
     batch_size: Optional[int] = None,
@@ -26,10 +26,12 @@ def colorize_dir(
         for p in sorted(frames_dir.glob("*"))
         if p.suffix.lower() in {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
     ]
+    if style.lower() != "eccv16":
+        print(f"[info] InstColorization supports ECCV16 only; using ECCV16 instead of '{style}'.")
     colorize_frames_inst(
         frame_paths=frame_paths,
         output_dir=out_dir,
-        style=style,
+        style="eccv16",
         device="cuda" if use_gpu else None,
         image_size=input_size,
     )

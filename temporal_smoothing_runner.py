@@ -59,7 +59,7 @@ def main() -> None:
     use_onnx = _prompt_use_onnx()
 
     print(
-        f"[info] smoothing {input_folder} → {output_folder} "
+        f"[info] smoothing {input_folder} -> {output_folder} "
         f"(window={window_size}, onnx={use_onnx})"
     )
 

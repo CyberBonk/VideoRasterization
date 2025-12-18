@@ -38,7 +38,7 @@ def run_colorization(frames_path: Path, model_name: str, use_gpu: bool) -> Path:
         colorize_frames_inst(
             frame_paths=frame_paths,
             output_dir=color_dir,
-            style="siggraph17",
+            style="eccv16",
             device="cuda" if use_gpu else None,
             image_size=256,
         )

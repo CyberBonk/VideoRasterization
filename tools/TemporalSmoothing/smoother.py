@@ -5,6 +5,7 @@ apply_temporal_smoothing(input_folder, output_folder, use_onnx=False, window_siz
     - input_folder: location of colorized frames (jpg/png)
     - output_folder: destination for smoothed frames
     - window_size: odd-sized sliding window for temporal blending
+    - anchor_weight: mix ratio with the center frame to keep edges sharp
   Uses NumPy averaging by default; if ONNX Runtime is available the exported
   temporal_smooth.onnx model can run on CUDA, DirectML (onnxruntime-directml),
   or CPU providers to produce the smoothed output.
@@ -114,11 +115,42 @@ def _run_onnx_smooth(session: "ort.InferenceSession", frames: list["np.ndarray"]
     return img
 
 
+def _blend_with_anchor(
+    blended: "np.ndarray",
+    frames: list["np.ndarray"],
+    anchor_weight: float = 0.65,
+) -> "np.ndarray":
+    """
+    Mix the smoothed output with the center frame to preserve sharpness.
+
+    A higher anchor_weight leans more on the original center frame, reducing blur
+    while keeping temporal stability from the blended result.
+    """
+    if not frames:
+        return blended
+    anchor = frames[len(frames) // 2]
+    if anchor is None:
+        return blended
+
+    try:
+        if anchor.shape[:2] != blended.shape[:2]:
+            anchor = cv2.resize(anchor, (blended.shape[1], blended.shape[0]))
+    except Exception:
+        return blended
+
+    weight = max(0.0, min(anchor_weight, 1.0))
+    if weight <= 0.0:
+        return blended
+
+    return cv2.addWeighted(anchor, weight, blended, 1.0 - weight, 0.0)
+
+
 def apply_temporal_smoothing(
     input_folder: str,
     output_folder: str,
     use_onnx: bool = False,
     window_size: int = 9,
+    anchor_weight: float = 0.65,
 ) -> None:
     if cv2 is None:
         print("[error] OpenCV (cv2) is not available; temporal smoothing skipped.")
@@ -196,6 +228,7 @@ def apply_temporal_smoothing(
         else:
             blended = _run_numpy_average(frames)
 
+        blended = _blend_with_anchor(blended, frames, anchor_weight=anchor_weight)
         cv2.imwrite(os.path.join(out_dir, name), blended)
 
         if (idx + 1) % 10 == 0 or idx == total - 1:

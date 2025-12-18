@@ -10,16 +10,18 @@ from torchvision import transforms
 from torchvision.transforms import InterpolationMode
 
 from . import networks
-from .siggraph_loader import load_eccv16, load_siggraph17
+from .siggraph_loader import load_eccv16
 from . import util as inst_util
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Image colorization (SIGGRAPH17 / ECCV16)")
+    parser = argparse.ArgumentParser(description="Image colorization (InstColorization ECCV16)")
     parser.add_argument("input", type=str, help="Path to a grayscale image or a folder of images")
     parser.add_argument("--output", type=str, default="results", help="Output folder for colorized images")
-    parser.add_argument("--image-size", type=int, default=256, help="Resize images to this square resolution for inference")
-    parser.add_argument("--style", type=str, default="siggraph17", choices=["siggraph17", "eccv16"], help="Colorization style")
+    parser.add_argument(
+        "--image-size", type=int, default=256, help="Resize images to this square resolution for inference"
+    )
+    parser.add_argument("--style", type=str, default="eccv16", choices=["eccv16"], help="InstColorization style")
     parser.add_argument("--device", type=str, default=None, help="Device: cuda|cpu|directml (auto if omitted)")
     parser.add_argument("--dtype", type=str, default="float32", choices=["float32", "float16"], help="Inference dtype")
     parser.add_argument("--weights", type=str, default=None, help="Optional path to weights (otherwise auto-download)")
@@ -130,6 +132,15 @@ def run_siggraph(net: torch.nn.Module, img_lab: dict, opt, device, dtype):
     return out_reg
 
 
+def save_colorized_fullres(orig_path: Path, color_small: np.ndarray, out_path: Path) -> None:
+    with Image.open(orig_path) as im:
+        orig_w, orig_h = im.size
+
+    color_img = Image.fromarray(color_small.astype("uint8"))
+    color_img = color_img.resize((orig_w, orig_h), Image.BICUBIC)
+    color_img.save(out_path, quality=95)
+
+
 def main():
     args = parse_args()
     device = select_device(args.device)
@@ -161,7 +172,7 @@ def main():
     if args.weights and Path(args.weights).is_file():
         weight_path = Path(args.weights)
     else:
-        weight_path = load_siggraph17() if args.style == "siggraph17" else load_eccv16()
+        weight_path = load_eccv16()
     load_weights(net_siggraph, str(weight_path), device)
 
     input_root = Path(args.input)
@@ -182,9 +193,9 @@ def main():
             out_rgb = inst_util.lab2rgb(torch.cat((full_lab["A"].to(device, dtype), out_reg), dim=1), opt)
 
         out_np = torch.clamp(out_rgb, 0.0, 1.0).cpu().numpy()[0].transpose(1, 2, 0)
-        out_img = Image.fromarray((out_np * 255).astype(np.uint8))
+        out_u8 = (out_np * 255.0).round().astype(np.uint8)
         out_file = out_dir / f"{img_path.stem}.png"
-        out_img.save(out_file)
+        save_colorized_fullres(img_path, out_u8, out_file)
         print(f"Saved {out_file}")
 
 

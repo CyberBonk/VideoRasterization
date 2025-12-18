@@ -16,9 +16,10 @@ from .colorize_inst import (
     prepare_transforms,
     run_siggraph,
 )
-from .siggraph_loader import load_eccv16, load_siggraph17
+from .siggraph_loader import load_eccv16
 
 DEFAULT_IMAGE_SIZE = 256
+INST_STYLE_ECCV16 = "inst_eccv16"
 
 
 def _list_frames(frame_paths: Iterable[Path | str]) -> list[Path]:
@@ -26,11 +27,35 @@ def _list_frames(frame_paths: Iterable[Path | str]) -> list[Path]:
     return sorted([p for p in paths if p.is_file()], key=lambda p: p.name)
 
 
+def _resolve_style(style: str) -> str:
+    """
+    InstColorization currently only supports the ECCV16 checkpoint.
+    TODO: add inst_siggraph17 once a compatible checkpoint is trained for networks.py.
+    """
+    normalized = style.lower()
+    if normalized in {"eccv16", INST_STYLE_ECCV16}:
+        return INST_STYLE_ECCV16
+    print(f"[info] InstColorization supports ECCV16 only; using ECCV16 instead of '{style}'.")
+    return INST_STYLE_ECCV16
+
+
+def save_colorized_fullres(orig_path: Path, color_small: np.ndarray, out_path: Path) -> None:
+    """
+    Save a colorized frame resized back to the original resolution.
+    """
+    with Image.open(orig_path) as im:
+        orig_w, orig_h = im.size
+
+    color_img = Image.fromarray(color_small.astype("uint8"))
+    color_img = color_img.resize((orig_w, orig_h), Image.BICUBIC)
+    color_img.save(out_path, quality=95)
+
+
 def colorize_frames_inst(
     frame_paths: Sequence[str | Path],
     output_dir: str | Path,
     *,
-    style: str = "siggraph17",
+    style: str = INST_STYLE_ECCV16,
     device: Optional[str] = None,
     image_size: int = DEFAULT_IMAGE_SIZE,
     dtype: str = "float32",
@@ -41,11 +66,12 @@ def colorize_frames_inst(
     Args:
         frame_paths: Iterable of image file paths (png/jpg/bmp/tiff).
         output_dir: Directory where colorized frames are written.
-        style: "siggraph17" (default) or "eccv16".
+        style: InstColorization backend label (ECCV16-only for now).
         device: torch device string; auto-select if None.
         image_size: resize target for inference.
         dtype: "float32" (default) or "float16".
     """
+    resolved_style = _resolve_style(style)
     target_device = select_device(device)
     target_dtype = torch.float16 if dtype == "float16" else torch.float32
     if target_dtype == torch.float16 and target_device.type == "cpu":
@@ -64,7 +90,9 @@ def colorize_frames_inst(
     net.to(device=target_device, dtype=target_dtype)
     net.eval()
 
-    weight_path = load_siggraph17() if style == "siggraph17" else load_eccv16()
+    # ECCV16-only backend; keep label explicit for future variants.
+    _ = resolved_style  # explicit for readability
+    weight_path = load_eccv16()
     load_weights(net, str(weight_path), target_device)
 
     paths = _list_frames(frame_paths)
@@ -89,8 +117,8 @@ def colorize_frames_inst(
             )
 
         out_np = torch.clamp(out_rgb, 0.0, 1.0).detach().cpu().numpy()[0].transpose(1, 2, 0)
-        out_img = Image.fromarray((out_np * 255).astype(np.uint8))
-        out_img.save(out_dir / frame_path.name)
+        out_u8 = (out_np * 255.0).round().astype(np.uint8)
+        save_colorized_fullres(frame_path, out_u8, out_dir / frame_path.name)
 
 
 __all__ = ["colorize_frames_inst"]

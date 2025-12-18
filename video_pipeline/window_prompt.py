@@ -1,18 +1,23 @@
 """Window selection prompt for temporal smoothing."""
 
 
-def ask_temporal_window() -> int:
-    """Ask for temporal smoothing window size."""
+def ask_temporal_window() -> int | None:
+    """Ask for temporal smoothing window size (default: off, recommended: 9)."""
+    raw = input("Temporal smoothing window (odd number, blank = off, recommended = 9): ").strip()
+    if raw == "":
+        print("[info] temporal smoothing disabled by default.")
+        return None
     try:
-        window_size = int(input("Enter temporal smoothing window (odd number, default=9): ") or 9)
-        if window_size % 2 == 0:
-            window_size -= 1
-        if window_size < 3:
-            window_size = 3
-        print(f"[info] using temporal window size: {window_size}")
+        window_size = int(raw)
     except Exception:
-        window_size = 9
-        print("[warn] invalid input, using default window size 9.")
+        print("[warn] invalid input, disabling temporal smoothing.")
+        return None
+
+    if window_size % 2 == 0:
+        window_size -= 1
+    if window_size < 3:
+        window_size = 3
+    print(f"[info] using temporal window size: {window_size}")
     return window_size
 
 
