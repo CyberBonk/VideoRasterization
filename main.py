@@ -1,14 +1,5 @@
 # main.py
-# role:
-#   orchestrates the full video colorization pipeline
-# flow:
-#   1) select input video
-#   2) extract frames via FFmpeg
-#   3) choose AI model (Zhang)
-#   4) run colorization (optimized CPU or GPU)
-#   5) temporal smoothing (ONNX / NumPy)
-#   6) generate report
-#   7) rebuild final video output
+
 
 from pathlib import Path
 import sys
