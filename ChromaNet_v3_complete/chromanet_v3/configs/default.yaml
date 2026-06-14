@@ -1,0 +1,50 @@
+# ChromaNet v3 — Default Configuration
+# ======================================
+# Edit this file to change training settings.
+# All paths are relative to the project root.
+
+model:
+  encoder_channels: [64, 128, 256, 512, 512]
+  decoder_channels: [512, 256, 128, 64, 32]
+  attention:        true
+  dropout:          0.1
+  memory_slots:     32
+  mem_dim:          256
+  use_memory:       true
+  use_scene:        true
+  use_confidence:   true
+
+data:
+  root:         "./data"          # folder with training images (COCO, DIV2K, etc.)
+  image_size:   256
+  batch_size:   8                 # reduce to 4 if GPU runs out of memory
+  val_split:    0.05              # 5% of data used for validation
+  augment:      true
+  num_workers:  2                 # reduce to 0 on Windows if errors occur
+
+training:
+  epochs:           100
+  lr:               0.0002
+  weight_decay:     0.0001
+  grad_clip:        1.0
+  mixed_precision:  true          # uses RTX 3060 efficiently (AMP)
+  checkpoint_dir:   "./checkpoints"
+  log_every:        50            # print loss every N steps
+  save_every:       5             # save checkpoint every N epochs
+
+loss:
+  lambda_l1:            10.0
+  lambda_perceptual:    1.0
+  lambda_colorfulness:  0.5
+  lambda_temporal:      2.0
+  lambda_confidence:    0.5
+  lambda_freq:          2.0
+  lambda_multiscale:    1.0
+  perceptual_layers:    ["relu2_2", "relu3_3"]
+
+evaluation:
+  metrics: ["psnr", "ssim", "colorfulness"]
+
+scheduler:
+  name:        "cosine"           # cosine annealing
+  min_lr:      0.000001

@@ -1,0 +1,11 @@
+torch>=2.1.0
+torchvision>=0.16.0
+Pillow>=10.0
+scikit-image>=0.22
+numpy>=1.26
+opencv-python>=4.10
+PyYAML>=6.0
+imageio-ffmpeg>=0.5
+matplotlib>=3.8
+onnx>=1.15
+onnxruntime>=1.17
