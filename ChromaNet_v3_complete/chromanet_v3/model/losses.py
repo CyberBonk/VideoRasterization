@@ -18,6 +18,40 @@ import torchvision.models as tvm
 from .temporal import TemporalConsistencyLoss
 
 
+def lab_to_rgb(L: torch.Tensor, AB: torch.Tensor) -> torch.Tensor:
+    """Convert normalized Lab tensors to differentiable sRGB tensors."""
+    l = (L + 1.0) * 50.0
+    a = AB[:, 0:1] * 110.0
+    b = AB[:, 1:2] * 110.0
+
+    fy = (l + 16.0) / 116.0
+    fx = fy + a / 500.0
+    fz = fy - b / 200.0
+
+    delta = 6.0 / 29.0
+
+    def inv_f(t: torch.Tensor) -> torch.Tensor:
+        return torch.where(t > delta, t.pow(3), 3.0 * delta**2 * (t - 4.0 / 29.0))
+
+    x = 0.95047 * inv_f(fx)
+    y = inv_f(fy)
+    z = 1.08883 * inv_f(fz)
+
+    r = 3.2404542 * x - 1.5371385 * y - 0.4985314 * z
+    g = -0.9692660 * x + 1.8760108 * y + 0.0415560 * z
+    bl = 0.0556434 * x - 0.2040259 * y + 1.0572252 * z
+    rgb_linear = torch.cat([r, g, bl], dim=1)
+    rgb = torch.where(
+        rgb_linear <= 0.0031308,
+        12.92 * rgb_linear,
+        # Keep the unselected power branch away from zero: x**(1/2.4)
+        # has an infinite derivative at zero and can poison backward through
+        # torch.where even when the linear branch is selected.
+        1.055 * torch.clamp_min(rgb_linear, 0.0031308).pow(1.0 / 2.4) - 0.055,
+    )
+    return rgb.clamp(0.0, 1.0)
+
+
 # ── 1. Chrominance-Weighted L1 ────────────────────────────────────────────
 
 class ChrominanceL1Loss(nn.Module):
@@ -67,16 +101,24 @@ class PerceptualLoss(nn.Module):
 # ── 3. Colorfulness Loss ──────────────────────────────────────────────────
 
 class ColorfulnessLoss(nn.Module):
-    def __init__(self, target: float = 35.0) -> None:
+    def __init__(self, target: float = 0.15, eps: float = 1e-8) -> None:
         super().__init__()
         self.target = target
+        self.eps = eps
 
     def forward(self, rgb: torch.Tensor) -> torch.Tensor:
         R, G, B = rgb[:,0], rgb[:,1], rgb[:,2]
         rg = R - G
         yb = 0.5*(R+G) - B
-        cf = (torch.sqrt(rg.flatten(1).std(1)**2 + yb.flatten(1).std(1)**2)
-              + 0.3*torch.sqrt(rg.flatten(1).mean(1)**2 + yb.flatten(1).mean(1)**2))
+        rg_flat = rg.flatten(1)
+        yb_flat = yb.flatten(1)
+        spread = torch.sqrt(
+            rg_flat.var(1, unbiased=False) + yb_flat.var(1, unbiased=False) + self.eps
+        )
+        center = torch.sqrt(
+            rg_flat.mean(1).square() + yb_flat.mean(1).square() + self.eps
+        )
+        cf = spread + 0.3 * center
         return F.relu(self.target - cf).mean()
 
 
@@ -185,10 +227,9 @@ class MultiScaleLoss(nn.Module):
             target_ab: [B, 2, H, W]     full resolution ground truth
         """
         # Downsample target to match each scale
-        H, W = target_ab.shape[2:]
-        target_s1 = F.interpolate(target_ab, size=(H//4, W//4),
+        target_s1 = F.interpolate(target_ab, size=ab_s1.shape[2:],
                                   mode="bilinear", align_corners=False)
-        target_s2 = F.interpolate(target_ab, size=(H//2, W//2),
+        target_s2 = F.interpolate(target_ab, size=ab_s2.shape[2:],
                                   mode="bilinear", align_corners=False)
 
         loss_s1 = F.l1_loss(ab_s1, target_s1) * self.weight_s1
@@ -220,7 +261,10 @@ class ChromaLoss(nn.Module):
                        conf=lambda_confidence, freq=lambda_freq,
                        ms=lambda_multiscale)
         self.chroma_l1   = ChrominanceL1Loss()
-        self.perceptual  = PerceptualLoss(layers=perceptual_layers)
+        self.perceptual = (
+            PerceptualLoss(layers=perceptual_layers)
+            if lambda_perceptual > 0 else None
+        )
         self.colorfulness= ColorfulnessLoss()
         self.temporal    = TemporalConsistencyLoss(lambda_temp=lambda_temporal)
         self.conf_loss   = ConfidenceLoss()
@@ -233,7 +277,8 @@ class ChromaLoss(nn.Module):
                 ) -> dict[str, torch.Tensor]:
 
         l1   = self.chroma_l1(pred_ab, target_ab)
-        perc = self.perceptual(pred_rgb, target_rgb)
+        perc = (self.perceptual(pred_rgb, target_rgb) if self.perceptual is not None
+                else torch.tensor(0.0, device=pred_ab.device))
         cf   = self.colorfulness(pred_rgb)
         freq = self.freq_loss(pred_ab, target_ab)
 
@@ -286,4 +331,4 @@ def build_loss(cfg: dict) -> ChromaLoss:
         perceptual_layers  = lc.get("perceptual_layers", ["relu2_2", "relu3_3"]),
     )
 
-__all__ = ["ChromaLoss", "build_loss", "FrequencyAwareLoss", "MultiScaleLoss"]
+__all__ = ["ChromaLoss", "build_loss", "FrequencyAwareLoss", "MultiScaleLoss", "lab_to_rgb"]

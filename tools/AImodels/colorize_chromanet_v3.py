@@ -1,0 +1,49 @@
+"""VideoRasterization adapter for locally trained ChromaNet v3."""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+from typing import Optional
+
+
+ROOT = Path(__file__).resolve().parents[2]
+CHROMANET_ROOT = ROOT / "ChromaNet_v3_complete" / "chromanet_v3"
+DEFAULT_CHECKPOINT = CHROMANET_ROOT / "checkpoints" / "checkpoint_latest.pth"
+
+
+def colorize_dir(
+    frames_dir: Path,
+    out_dir: Path,
+    models_dir: Optional[Path] = None,
+    use_gpu: bool = True,
+    input_size: int = 256,
+    batch_size: Optional[int] = 12,
+    checkpoint: Optional[Path] = None,
+    **_: object,
+) -> None:
+    """Colorize extracted frames using trained ChromaNet v3 checkpoint."""
+    _ = models_dir
+    checkpoint_path = Path(checkpoint) if checkpoint else DEFAULT_CHECKPOINT
+    if not checkpoint_path.exists():
+        raise FileNotFoundError(
+            f"ChromaNet checkpoint not found: {checkpoint_path}. Train model first."
+        )
+
+    chromanet_path = str(CHROMANET_ROOT)
+    if chromanet_path not in sys.path:
+        sys.path.insert(0, chromanet_path)
+
+    from inference.colorizer import ChromaColorizer
+
+    device = "cuda" if use_gpu else "cpu"
+    colorizer = ChromaColorizer(
+        checkpoint_path=checkpoint_path,
+        device=device,
+        image_size=input_size,
+        save_confidence=False,
+    )
+    print(f"[start] ChromaNet v3 | checkpoint={checkpoint_path.name} | device={device}")
+    colorizer.colorize_folder(frames_dir, out_dir, batch_size=batch_size or 1)
+
+
+__all__ = ["colorize_dir"]

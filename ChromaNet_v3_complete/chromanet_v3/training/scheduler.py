@@ -7,10 +7,11 @@ from torch.optim.lr_scheduler import LambdaLR
 
 def build_scheduler(optimizer: Optimizer, cfg: dict) -> LambdaLR:
     tc         = cfg.get("training", {})
+    sc         = cfg.get("scheduler", {})
     total      = tc.get("epochs", 40)
-    warmup     = tc.get("lr_warmup_epochs", 3)
+    warmup     = sc.get("warmup_epochs", 3)
     lr         = tc.get("lr", 0.001)
-    lr_min     = tc.get("lr_min", 0.00001)
+    lr_min     = sc.get("min_lr", 0.00001)
     ratio      = lr_min / lr
 
     def fn(epoch: int) -> float:

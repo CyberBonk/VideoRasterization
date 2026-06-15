@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from PIL import Image
 from skimage import color as skcolor
-from torch.utils.data import DataLoader, Dataset, random_split
+from torch.utils.data import DataLoader, Dataset
 from .transforms import build_transforms
 
 _EXTS = {".jpg",".jpeg",".png",".bmp",".tiff",".tif",".webp"}
@@ -33,8 +33,9 @@ def _to_lab_tensors(img: Image.Image):
 
 class ColorizationDataset(Dataset):
     def __init__(self, root: str | Path, image_size: int = 256,
-                 augment: bool = True, max_samples: int | None = None) -> None:
-        self.paths = _collect(root)
+                 augment: bool = True, max_samples: int | None = None,
+                 paths: list[Path] | None = None) -> None:
+        self.paths = list(paths) if paths is not None else _collect(root)
         if not self.paths:
             raise RuntimeError(f"No images found under: {root}")
         if max_samples:
@@ -57,13 +58,25 @@ class ColorizationDataset(Dataset):
 
 def build_dataloaders(cfg: dict):
     dc  = cfg.get("data", {})
-    ds  = ColorizationDataset(dc.get("root","./datasets/coco"),
-                               dc.get("image_size",256), augment=False)
-    nv  = max(1, int(len(ds) * dc.get("val_split", 0.05)))
-    nt  = len(ds) - nv
-    tr, vl = random_split(ds, [nt, nv], generator=torch.Generator().manual_seed(42))
-    tr.dataset.transform = build_transforms(dc.get("image_size",256), augment=dc.get("augment",True))
-    kw  = dict(num_workers=dc.get("num_workers",6), pin_memory=True)
+    root = dc.get("root", "./datasets/coco")
+    paths = _collect(root)
+    if not paths:
+        raise RuntimeError(f"No images found under: {root}")
+    generator = torch.Generator().manual_seed(42)
+    order = torch.randperm(len(paths), generator=generator).tolist()
+    nv = max(1, int(len(paths) * dc.get("val_split", 0.05)))
+    val_paths = [paths[i] for i in order[:nv]]
+    train_paths = [paths[i] for i in order[nv:]]
+    size = dc.get("image_size", 256)
+    tr = ColorizationDataset(root, size, augment=dc.get("augment", True), paths=train_paths)
+    vl = ColorizationDataset(root, size, augment=False, paths=val_paths)
+    nt = len(tr)
+    workers = dc.get("num_workers", 4)
+    kw = dict(
+        num_workers=workers,
+        pin_memory=torch.cuda.is_available(),
+        persistent_workers=workers > 0,
+    )
     bs  = dc.get("batch_size", 32)
     print(f"[data] train={nt} val={nv} batch={bs}")
     return (DataLoader(tr, bs, shuffle=True,  drop_last=True,  **kw),

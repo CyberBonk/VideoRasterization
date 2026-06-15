@@ -28,8 +28,9 @@ def ssim(pred: torch.Tensor, target: torch.Tensor,
 def colorfulness_score(rgb: torch.Tensor) -> float:
     R,G,B  = rgb[:,0], rgb[:,1], rgb[:,2]
     rg, yb = R-G, 0.5*(R+G)-B
-    cf     = (torch.sqrt(rg.flatten(1).std(1)**2 + yb.flatten(1).std(1)**2)
-              + 0.3*torch.sqrt(rg.flatten(1).mean(1)**2+yb.flatten(1).mean(1)**2))
+    rg_flat, yb_flat = rg.flatten(1), yb.flatten(1)
+    cf = (torch.sqrt(rg_flat.var(1, unbiased=False) + yb_flat.var(1, unbiased=False) + 1e-8)
+          + 0.3*torch.sqrt(rg_flat.mean(1).square() + yb_flat.mean(1).square() + 1e-8))
     return float(cf.mean().item())
 
 

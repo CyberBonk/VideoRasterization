@@ -6,3 +6,8 @@ __pycache__/
 temp/
 reports/
 *.mp4
+*.zip
+ChromaNet_v3_complete/chromanet_v3/data/train2017/
+ChromaNet_v3_complete/chromanet_v3/checkpoints/
+ChromaNet_v3_complete/chromanet_v3/previews/
+ChromaNet_v3_complete/chromanet_v3/training.log

@@ -17,20 +17,22 @@ model:
 data:
   root:         "./data"          # folder with training images (COCO, DIV2K, etc.)
   image_size:   256
-  batch_size:   8                 # reduce to 4 if GPU runs out of memory
+  batch_size:   12                # safer headroom for RTX 4070 Laptop 8 GB
   val_split:    0.05              # 5% of data used for validation
   augment:      true
-  num_workers:  2                 # reduce to 0 on Windows if errors occur
+  num_workers:  4                 # reduce to 0 on Windows if worker errors occur
 
 training:
-  epochs:           100
+  epochs:           10
   lr:               0.0002
   weight_decay:     0.0001
   grad_clip:        1.0
   mixed_precision:  true          # uses RTX 3060 efficiently (AMP)
+  amp_dtype:        "bfloat16"    # wider numerical range than float16 on RTX 4070
   checkpoint_dir:   "./checkpoints"
   log_every:        50            # print loss every N steps
-  save_every:       5             # save checkpoint every N epochs
+  save_every:       1             # save every epoch for safe overnight resume
+  preview_every:    1             # save validation comparison every epoch
 
 loss:
   lambda_l1:            10.0
@@ -47,4 +49,5 @@ evaluation:
 
 scheduler:
   name:        "cosine"           # cosine annealing
+  warmup_epochs: 3
   min_lr:      0.000001

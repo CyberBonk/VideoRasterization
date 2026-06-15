@@ -18,7 +18,7 @@ class ChromaColorizer:
         self.save_confidence  = save_confidence
         self.device = torch.device(
             device if device else ("cuda" if torch.cuda.is_available() else "cpu"))
-        ck  = torch.load(checkpoint_path, map_location=self.device)
+        ck  = torch.load(checkpoint_path, map_location=self.device, weights_only=False)
         self.model = build_model(ck.get("cfg", {}))
         self.model.load_state_dict(ck["model_state"])
         self.model.to(self.device).eval()
@@ -56,18 +56,40 @@ class ChromaColorizer:
         return result
 
     @torch.no_grad()
-    def colorize_folder(self, inp_dir, out_dir, ext=".png"):
+    def colorize_folder(self, inp_dir, out_dir, ext=".png", batch_size=1):
         inp_dir = Path(inp_dir); out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         if self.save_confidence: (out_dir/"confidence_maps").mkdir(exist_ok=True)
         frames = sorted([p for p in inp_dir.iterdir() if p.suffix.lower() in _EXTS])
         if not frames: print(f"[warn] no images in {inp_dir}"); return
-        print(f"[ChromaColorizer] {len(frames)} frames...")
-        for i, fp in enumerate(frames):
-            cp = out_dir/"confidence_maps"/(fp.stem+"_conf.png") if self.save_confidence else None
-            self.colorize_image(fp, out_dir/(fp.stem+ext), cp)
-            if (i+1)%50==0 or (i+1)==len(frames):
-                print(f"  {i+1}/{len(frames)}", end="\r", flush=True)
-        print(f"\n[done] → {out_dir}")
+        batch_size = max(1, int(batch_size))
+        print(f"[ChromaColorizer] {len(frames)} frames | batch={batch_size}...")
+        done = 0
+        for start in range(0, len(frames), batch_size):
+            batch_paths = frames[start:start + batch_size]
+            prepared = [self._pre(Image.open(fp)) for fp in batch_paths]
+            L = torch.cat([item[0] for item in prepared], dim=0)
+            originals = [item[1] for item in prepared]
+
+            with torch.amp.autocast(
+                "cuda", enabled=self.device.type == "cuda", dtype=torch.bfloat16
+            ):
+                output = self.model(L)
+                AB = output["ab"]
+                confidence = output.get("confidence")
+                if confidence is not None:
+                    AB = apply_confidence(AB, confidence)
+
+            for index, fp in enumerate(batch_paths):
+                result = self._post(L[index:index + 1], AB[index:index + 1], originals[index])
+                result.save(out_dir/(fp.stem+ext))
+                if self.save_confidence and confidence is not None:
+                    cp = out_dir/"confidence_maps"/(fp.stem+"_conf.png")
+                    save_confidence_heatmap(confidence[index:index + 1], cp)
+
+            done += len(batch_paths)
+            if done % 48 == 0 or done == len(frames):
+                print(f"  {done}/{len(frames)}", end="\r", flush=True)
+        print(f"\n[done] output: {out_dir}")
 
 __all__ = ["ChromaColorizer"]
