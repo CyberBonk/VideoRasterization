@@ -192,6 +192,7 @@ class Trainer:
 
         run_started = time.monotonic()
         max_seconds = self.max_hours * 3600.0 if self.max_hours else None
+        stop_after_epoch = False
 
         for epoch in range(self.start_epoch, self.epochs):
             self.model.train()
@@ -212,12 +213,11 @@ class Trainer:
                           f"temp={el.get('temporal',0)/ns:.4f} "
                           f"| lr={lr:.6f}")
 
-                if max_seconds and time.monotonic() - run_started >= max_seconds:
-                    path = self.save_checkpoint(epoch, "_time_limit")
-                    self.update_latest(path)
-                    print(f"\n[stop] Reached {self.max_hours:g} hour limit during epoch {epoch + 1}.")
-                    print("[stop] Resume with: --resume latest")
-                    return self.history
+                if (max_seconds and not stop_after_epoch
+                        and time.monotonic() - run_started >= max_seconds):
+                    stop_after_epoch = True
+                    print(f"\n[time] Reached {self.max_hours:g} hour limit during epoch {epoch + 1}.")
+                    print("[time] Finishing current epoch, then stopping.")
 
             avg   = {k:v/ns for k,v in el.items()}
             vstat = self._validate(val_loader, epoch + 1)
@@ -241,6 +241,11 @@ class Trainer:
 
             (self.checkpoint_dir/"history.json").write_text(
                 json.dumps(self.history, indent=2), encoding="utf-8")
+
+            if stop_after_epoch:
+                print(f"[stop] Finished epoch {epoch + 1} after time limit.")
+                print("[stop] Resume with: --resume latest")
+                return self.history
 
         final_path = self.save_checkpoint(self.epochs, "_final")
         self.update_latest(final_path)
