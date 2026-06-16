@@ -18,6 +18,9 @@ def colorize_dir(
     use_gpu: bool = True,
     input_size: int = 256,
     batch_size: Optional[int] = 12,
+    prefetch_workers: int = 4,
+    save_workers: int = 4,
+    max_prefetch_batches: int = 2,
     checkpoint: Optional[Path] = None,
     **_: object,
 ) -> None:
@@ -43,7 +46,14 @@ def colorize_dir(
         save_confidence=False,
     )
     print(f"[start] ChromaNet v3 | checkpoint={checkpoint_path.name} | device={device}")
-    colorizer.colorize_folder(frames_dir, out_dir, batch_size=batch_size or 1)
+    colorizer.colorize_folder(
+        frames_dir,
+        out_dir,
+        batch_size=batch_size or 1,
+        prefetch_workers=prefetch_workers,
+        save_workers=save_workers,
+        max_prefetch_batches=max_prefetch_batches,
+    )
 
 
 __all__ = ["colorize_dir"]

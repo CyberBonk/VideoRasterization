@@ -1,5 +1,6 @@
 """colorizer.py — ChromaNet v3 Inference"""
 from __future__ import annotations
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 import numpy as np
 import torch
@@ -69,43 +70,97 @@ class ChromaColorizer:
         return result
 
     @torch.no_grad()
-    def colorize_folder(self, inp_dir, out_dir, ext=".png", batch_size=1):
+    def colorize_folder(
+        self, inp_dir, out_dir, ext=".png", batch_size=1,
+        prefetch_workers=4, save_workers=4, max_prefetch_batches=2,
+    ):
         inp_dir = Path(inp_dir); out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         if self.save_confidence: (out_dir/"confidence_maps").mkdir(exist_ok=True)
         frames = sorted([p for p in inp_dir.iterdir() if p.suffix.lower() in _EXTS])
         if not frames: print(f"[warn] no images in {inp_dir}"); return
         batch_size = max(1, int(batch_size))
-        print(f"[ChromaColorizer] {len(frames)} frames | batch={batch_size}...")
+        prefetch_workers = max(1, int(prefetch_workers))
+        save_workers = max(1, int(save_workers))
+        max_inflight = max(1, int(max_prefetch_batches))
+        print(
+            f"[ChromaColorizer] {len(frames)} frames | batch={batch_size} "
+            f"| prep={prefetch_workers} save={save_workers}..."
+        )
+
+        def prep_frame(fp: Path):
+            with Image.open(fp) as img:
+                return fp, self._pre(img)
+
+        def save_frame(fp: Path, result: Image.Image) -> None:
+            result.save(out_dir/(fp.stem+ext))
+
+        def submit_batch(executor, batch_paths):
+            return [executor.submit(prep_frame, fp) for fp in batch_paths]
+
+        frame_batches = [
+            frames[start:start + batch_size]
+            for start in range(0, len(frames), batch_size)
+        ]
         done = 0
-        for start in range(0, len(frames), batch_size):
-            batch_paths = frames[start:start + batch_size]
-            prepared = [self._pre(Image.open(fp)) for fp in batch_paths]
-            L = torch.cat([item[0] for item in prepared], dim=0)
-            originals = [item[1] for item in prepared]
-            full_luminance = [item[2] for item in prepared]
 
-            with torch.amp.autocast(
-                "cuda", enabled=self.device.type == "cuda", dtype=torch.bfloat16
-            ):
-                output = self.model(L)
-                AB = output["ab"]
-                confidence = output.get("confidence")
-                if confidence is not None:
-                    AB = apply_confidence(AB, confidence)
+        with ThreadPoolExecutor(max_workers=prefetch_workers) as prep_pool, \
+                ThreadPoolExecutor(max_workers=save_workers) as save_pool:
+            next_batch = 0
+            inflight = []
+            while next_batch < len(frame_batches) and len(inflight) < max_inflight:
+                batch_paths = frame_batches[next_batch]
+                inflight.append((next_batch, submit_batch(prep_pool, batch_paths)))
+                next_batch += 1
 
-            for index, fp in enumerate(batch_paths):
-                result = self._post(
-                    full_luminance[index], AB[index:index + 1], originals[index]
-                )
-                result.save(out_dir/(fp.stem+ext))
-                if self.save_confidence and confidence is not None:
-                    cp = out_dir/"confidence_maps"/(fp.stem+"_conf.png")
-                    save_confidence_heatmap(confidence[index:index + 1], cp)
+            pending_saves = set()
+            while inflight:
+                batch_index, prep_futures = inflight.pop(0)
+                prepared_results = [future.result() for future in prep_futures]
+                prepared_results.sort(key=lambda item: item[0].name)
 
-            done += len(batch_paths)
-            if done % 48 == 0 or done == len(frames):
-                print(f"  {done}/{len(frames)}", end="\r", flush=True)
+                batch_paths = [item[0] for item in prepared_results]
+                prepared = [item[1] for item in prepared_results]
+                L = torch.cat([item[0] for item in prepared], dim=0)
+                originals = [item[1] for item in prepared]
+                full_luminance = [item[2] for item in prepared]
+
+                while next_batch < len(frame_batches) and len(inflight) < max_inflight:
+                    paths = frame_batches[next_batch]
+                    inflight.append((next_batch, submit_batch(prep_pool, paths)))
+                    next_batch += 1
+
+                with torch.amp.autocast(
+                    "cuda", enabled=self.device.type == "cuda", dtype=torch.bfloat16
+                ):
+                    output = self.model(L)
+                    AB = output["ab"]
+                    confidence = output.get("confidence")
+                    if confidence is not None:
+                        AB = apply_confidence(AB, confidence)
+
+                for index, fp in enumerate(batch_paths):
+                    result = self._post(
+                        full_luminance[index], AB[index:index + 1], originals[index]
+                    )
+                    pending_saves.add(save_pool.submit(save_frame, fp, result))
+                    if self.save_confidence and confidence is not None:
+                        cp = out_dir/"confidence_maps"/(fp.stem+"_conf.png")
+                        save_confidence_heatmap(confidence[index:index + 1], cp)
+
+                done += len(batch_paths)
+                if done % 48 == 0 or done == len(frames):
+                    print(f"  {done}/{len(frames)}", end="\r", flush=True)
+
+                if len(pending_saves) >= save_workers * 3:
+                    completed, pending_saves = wait(
+                        pending_saves, return_when=FIRST_COMPLETED
+                    )
+                    for future in completed:
+                        future.result()
+
+            for future in pending_saves:
+                future.result()
         print(f"\n[done] output: {out_dir}")
 
 __all__ = ["ChromaColorizer"]

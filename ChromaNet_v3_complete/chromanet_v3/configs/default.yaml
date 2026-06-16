@@ -16,15 +16,15 @@ model:
 
 data:
   root:         "./data"          # folder with training images (COCO, DIV2K, etc.)
-  image_size:   256
-  batch_size:   12                # safer headroom for RTX 4070 Laptop 8 GB
+  image_size:   512
+  batch_size:   3                 # same pixel count as batch 12 at 256x256
   val_split:    0.05              # 5% of data used for validation
   augment:      true
   num_workers:  4                 # reduce to 0 on Windows if worker errors occur
 
 training:
-  epochs:           10
-  lr:               0.0002
+  epochs:           16            # resume epoch 6, then fine-tune 10 epochs at 512
+  lr:               0.00001
   weight_decay:     0.0001
   grad_clip:        1.0
   mixed_precision:  true          # uses RTX 3060 efficiently (AMP)
