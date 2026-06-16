@@ -51,6 +51,24 @@ def choose_chromanet_options(model_name: str) -> dict:
     if model_name not in CHROMANET_MODEL_NAMES:
         return {}
 
+    print("ChromaNet style preset:")
+    print("0) realistic")
+    print("1) cartoonish")
+    print("2) brush art / grainy")
+    style_raw = input("style preset (default [0]): ").strip()
+    try:
+        style = max(0, min(2, int(style_raw or "0")))
+    except Exception:
+        print("[warn] invalid style; using realistic.")
+        style = 0
+
+    style_presets = {
+        0: {"saturation_multiplier": 1.00, "grain_amount": 0.00, "label": "realistic"},
+        1: {"saturation_multiplier": 1.35, "grain_amount": 0.00, "label": "cartoonish"},
+        2: {"saturation_multiplier": 1.10, "grain_amount": 0.35, "label": "brush art"},
+    }
+    style_opts = style_presets[style]
+
     print("ChromaNet color strength:")
     print("0) default / realistic")
     print("1) mild")
@@ -97,8 +115,14 @@ def choose_chromanet_options(model_name: str) -> dict:
         }
     else:
         opts = presets[level]
+        opts = {
+            **opts,
+            "saturation_gain": opts["saturation_gain"] * style_opts["saturation_multiplier"],
+            "grain_amount": max(opts["grain_amount"], style_opts["grain_amount"]),
+        }
+    opts["style_preset"] = style_opts["label"]
     print(
-        f"[info] ChromaNet strength={level} "
+        f"[info] ChromaNet style={opts['style_preset']} strength={level} "
         f"confidence_threshold={opts['confidence_threshold']:.2f} "
         f"saturation_gain={opts['saturation_gain']:.2f} "
         f"grain_amount={opts['grain_amount']:.2f}"

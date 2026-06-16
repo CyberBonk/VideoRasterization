@@ -24,6 +24,7 @@ def colorize_dir(
     confidence_threshold: float = 0.3,
     saturation_gain: float = 1.0,
     grain_amount: float = 0.0,
+    style_preset: str = "realistic",
     checkpoint: Optional[Path] = None,
     **_: object,
 ) -> None:
@@ -53,6 +54,7 @@ def colorize_dir(
     )
     print(
         f"[start] ChromaNet v3 | checkpoint={checkpoint_path.name} | device={device} "
+        f"| style={style_preset} "
         f"| confidence_threshold={confidence_threshold:.2f} "
         f"| saturation_gain={saturation_gain:.2f} "
         f"| grain_amount={grain_amount:.2f}"
