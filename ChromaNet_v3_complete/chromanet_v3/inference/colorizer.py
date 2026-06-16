@@ -12,6 +12,11 @@ from model.confidence import apply_confidence, save_confidence_heatmap
 
 _EXTS = {".jpg",".jpeg",".png",".bmp",".tiff",".tif"}
 
+try:
+    import cv2
+except Exception:
+    cv2 = None
+
 
 class ChromaColorizer:
     def __init__(self, checkpoint_path, device=None,
@@ -50,8 +55,11 @@ class ChromaColorizer:
             AB.float(), size=(height, width), mode="bicubic", align_corners=False
         )
         ABd = AB_full[0].cpu().numpy() * 110.0
-        lab = np.stack([Ld, ABd[0], ABd[1]], axis=2)
-        rgb = np.clip(skcolor.lab2rgb(lab), 0.0, 1.0)
+        lab = np.stack([Ld, ABd[0], ABd[1]], axis=2).astype(np.float32)
+        if cv2 is not None:
+            rgb = np.clip(cv2.cvtColor(lab, cv2.COLOR_Lab2RGB), 0.0, 1.0)
+        else:
+            rgb = np.clip(skcolor.lab2rgb(lab), 0.0, 1.0)
         return Image.fromarray((rgb*255).astype(np.uint8))
 
     @torch.no_grad()
