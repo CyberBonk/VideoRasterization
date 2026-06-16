@@ -8,6 +8,7 @@ from .env import HAS_IPEX, LOGICAL, ipex
 model_selector = import_module("tools.model_selector")
 
 ROOT = Path(__file__).resolve().parent.parent
+CHROMANET_MODEL_NAMES = {"colorize_chromanet_v3", "chromanet_v3", "chromanet"}
 INST_MODEL_NAMES = {
     "instcolorization2025",
     "inst_colorization",
@@ -57,8 +58,9 @@ def run_colorization(
             num_threads=LOGICAL,
             input_size=224,
             progress=True,
-            prefetch_workers=LOGICAL // 4,
-            save_workers=2,
+            prefetch_workers=4 if model_name in CHROMANET_MODEL_NAMES else LOGICAL // 4,
+            save_workers=4 if model_name in CHROMANET_MODEL_NAMES else 2,
+            max_prefetch_batches=2,
             **model_options,
         )
     print(f"[ok] colorization complete: {color_dir}")
