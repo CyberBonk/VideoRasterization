@@ -24,6 +24,7 @@ def rebuild_video_output(
             codec="h264",
             fps=fps,
             prefer_gpu=True,
+            source_audio=str(source_video),
         )
         print(f"[ok] video rebuild saved: {default_output}")
     except Exception as e:

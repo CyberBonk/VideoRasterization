@@ -76,6 +76,7 @@ def build_video_from_frames(
     codec: str = "h264",
     fps: int = 24,
     prefer_gpu: bool = True,
+    source_audio: str | None = None,
 ) -> None:
     codec = codec.lower()
     if codec not in _CODEC_MAP:
@@ -96,6 +97,7 @@ def build_video_from_frames(
 
     preset = "p4" if encoder.endswith("nvenc") else "medium"
     input_pattern = str((frames_path / pattern).as_posix())
+    source_audio_path = Path(source_audio).expanduser() if source_audio else None
 
     cmd = [
         ffmpeg_path,
@@ -104,14 +106,25 @@ def build_video_from_frames(
         str(fps),
         "-i",
         input_pattern,
+    ]
+    if source_audio_path and source_audio_path.exists():
+        cmd += ["-i", str(source_audio_path)]
+    cmd += [
         "-c:v",
         encoder,
         "-preset",
         preset,
         "-pix_fmt",
         "yuv420p",
-        str(output_file),
     ]
+    if source_audio_path and source_audio_path.exists():
+        cmd += [
+            "-map", "0:v:0",
+            "-map", "1:a:0?",
+            "-c:a", "copy",
+            "-shortest",
+        ]
+    cmd.append(str(output_file))
 
     _print_command(cmd)
     try:
