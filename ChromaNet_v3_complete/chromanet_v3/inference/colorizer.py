@@ -21,11 +21,13 @@ except Exception:
 class ChromaColorizer:
     def __init__(self, checkpoint_path, device=None,
                  image_size=256, save_confidence=False,
-                 confidence_threshold=0.3, saturation_gain=1.0) -> None:
+                 confidence_threshold=0.3, saturation_gain=1.0,
+                 grain_amount=0.0) -> None:
         self.image_size       = image_size
         self.save_confidence  = save_confidence
         self.confidence_threshold = float(confidence_threshold)
         self.saturation_gain = float(saturation_gain)
+        self.grain_amount = max(0.0, min(float(grain_amount), 1.0))
         self.device = torch.device(
             device if device else ("cuda" if torch.cuda.is_available() else "cpu"))
         ck  = torch.load(checkpoint_path, map_location=self.device, weights_only=False)
@@ -63,6 +65,9 @@ class ChromaColorizer:
             rgb = np.clip(cv2.cvtColor(lab, cv2.COLOR_Lab2RGB), 0.0, 1.0)
         else:
             rgb = np.clip(skcolor.lab2rgb(lab), 0.0, 1.0)
+        if self.grain_amount > 0:
+            noise = np.random.normal(0.0, 0.035 * self.grain_amount, rgb.shape[:2])
+            rgb = np.clip(rgb + noise[:, :, None], 0.0, 1.0)
         return Image.fromarray((rgb*255).astype(np.uint8))
 
     @torch.no_grad()
