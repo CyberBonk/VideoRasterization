@@ -42,12 +42,13 @@ def main():
 
     available_models = model_selector.scan_available_models(ROOT / "tools" / "AImodels")
     model_name = inference_options.choose_colorization_model(available_models)
+    model_options = inference_options.choose_chromanet_options(model_name)
 
 
     use_gpu = torch.cuda.is_available()
     print(f"[info] GPU available: {use_gpu}")
     window_size = ask_temporal_window()
-    color_dir = run_colorization(frames_dir, model_name, use_gpu)
+    color_dir = run_colorization(frames_dir, model_name, use_gpu, **model_options)
     smooth_dir = apply_temporal_smoothing_step(color_dir, window_size)
     generate_report(frames_gray_dir=frames_dir, frames_color_dir=color_dir)
     rebuild_video_output(color_dir=color_dir, smooth_dir=smooth_dir, source_video=video_path, fps=24)

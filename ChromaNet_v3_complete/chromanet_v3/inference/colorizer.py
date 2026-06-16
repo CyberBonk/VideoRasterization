@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from PIL import Image
 from skimage import color as skcolor
 from model.chromaNet import build_model
-from model.confidence import apply_confidence, save_confidence_heatmap
+from model.confidence import save_confidence_heatmap
 
 _EXTS = {".jpg",".jpeg",".png",".bmp",".tiff",".tif"}
 
@@ -20,9 +20,12 @@ except Exception:
 
 class ChromaColorizer:
     def __init__(self, checkpoint_path, device=None,
-                 image_size=256, save_confidence=False) -> None:
+                 image_size=256, save_confidence=False,
+                 confidence_threshold=0.3, saturation_gain=1.0) -> None:
         self.image_size       = image_size
         self.save_confidence  = save_confidence
+        self.confidence_threshold = float(confidence_threshold)
+        self.saturation_gain = float(saturation_gain)
         self.device = torch.device(
             device if device else ("cuda" if torch.cuda.is_available() else "cpu"))
         ck  = torch.load(checkpoint_path, map_location=self.device, weights_only=False)
@@ -53,7 +56,7 @@ class ChromaColorizer:
         Ld = L_full
         AB_full = F.interpolate(
             AB.float(), size=(height, width), mode="bicubic", align_corners=False
-        )
+        ) * self.saturation_gain
         ABd = AB_full[0].cpu().numpy() * 110.0
         lab = np.stack([Ld, ABd[0], ABd[1]], axis=2).astype(np.float32)
         if cv2 is not None:
@@ -69,7 +72,8 @@ class ChromaColorizer:
         out      = self.model(L)
         AB       = out["ab"]
         conf     = out.get("confidence")
-        if conf is not None: AB = apply_confidence(AB, conf)
+        if conf is not None:
+            AB = self._apply_confidence(AB, conf)
         result   = self._post(L_full, AB, orig)
         if out_path: result.save(out_path)
         if self.save_confidence and conf is not None:
@@ -145,7 +149,7 @@ class ChromaColorizer:
                     AB = output["ab"]
                     confidence = output.get("confidence")
                     if confidence is not None:
-                        AB = apply_confidence(AB, confidence)
+                        AB = self._apply_confidence(AB, confidence)
 
                 for index, fp in enumerate(batch_paths):
                     result = self._post(
@@ -170,5 +174,10 @@ class ChromaColorizer:
             for future in pending_saves:
                 future.result()
         print(f"\n[done] output: {out_dir}")
+
+    def _apply_confidence(self, ab: torch.Tensor, conf: torch.Tensor) -> torch.Tensor:
+        threshold = max(0.0, min(self.confidence_threshold, 0.95))
+        scale = ((conf - threshold) / (1.0 - threshold)).clamp(0.0, 1.0)
+        return ab * scale
 
 __all__ = ["ChromaColorizer"]

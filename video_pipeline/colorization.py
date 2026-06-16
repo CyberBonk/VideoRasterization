@@ -15,7 +15,9 @@ INST_MODEL_NAMES = {
 }
 
 
-def run_colorization(frames_path: Path, model_name: str, use_gpu: bool) -> Path:
+def run_colorization(
+    frames_path: Path, model_name: str, use_gpu: bool, **model_options
+) -> Path:
     color_dir = frames_path.parent / f"{frames_path.name}_colorized"
     color_dir.mkdir(parents=True, exist_ok=True)
 
@@ -57,6 +59,7 @@ def run_colorization(frames_path: Path, model_name: str, use_gpu: bool) -> Path:
             progress=True,
             prefetch_workers=LOGICAL // 4,
             save_workers=2,
+            **model_options,
         )
     print(f"[ok] colorization complete: {color_dir}")
     return color_dir
