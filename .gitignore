@@ -11,3 +11,5 @@ ChromaNet_v3_complete/chromanet_v3/data/train2017/
 ChromaNet_v3_complete/chromanet_v3/checkpoints/
 ChromaNet_v3_complete/chromanet_v3/previews/
 ChromaNet_v3_complete/chromanet_v3/training.log
+training.log
+ChromaNet_v3_complete/chromanet_v3/training_*.log
