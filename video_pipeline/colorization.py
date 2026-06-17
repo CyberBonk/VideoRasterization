@@ -4,6 +4,7 @@ from importlib import import_module
 from pathlib import Path
 
 from .env import HAS_IPEX, LOGICAL, ipex
+from .frame_deduplication import deduplicate_consecutive_frames, expand_duplicate_outputs
 from tools.console import status
 
 model_selector = import_module("tools.model_selector")
@@ -22,6 +23,7 @@ def run_colorization(
 ) -> Path:
     color_dir = frames_path.parent / f"{frames_path.name}_colorized"
     color_dir.mkdir(parents=True, exist_ok=True)
+    model_frames_path, duplicate_map = deduplicate_consecutive_frames(frames_path)
 
     if HAS_IPEX and not use_gpu and ipex:
         status("[info] optimizing with Intel oneDNN (IPEX)...")
@@ -36,7 +38,7 @@ def run_colorization(
 
         frame_paths = [
             p
-            for p in sorted(frames_path.glob("*"))
+            for p in sorted(model_frames_path.glob("*"))
             if p.suffix.lower() in {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
         ]
         colorize_frames_inst(
@@ -49,7 +51,7 @@ def run_colorization(
     else:
         model_selector.run_colorizer(
             model_name=model_name,
-            frames_dir=frames_path,
+            frames_dir=model_frames_path,
             color_dir=color_dir,
             models_dir=ROOT / "models",
             zhang_variant=None,
@@ -64,6 +66,7 @@ def run_colorization(
             max_prefetch_batches=2,
             **model_options,
         )
+    expand_duplicate_outputs(color_dir, duplicate_map)
     status(f"[ok] colorization complete: {color_dir}")
     return color_dir
 
