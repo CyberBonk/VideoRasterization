@@ -233,6 +233,74 @@ ChromaNet_v3_complete/chromanet_v3/checkpoints/
   - `max / experimental`
   - custom confidence filter near `0.00`
 
+## Future Plans
+
+### Queue-Based In-Memory Pipeline
+
+The current pipeline writes extracted frames to disk, then reads them back for the duplicate-frame middleman and AI colorization. A future optimization is to replace most frame disk I/O with a queue-based in-memory pipeline.
+
+Target design:
+
+```text
+FFmpeg frame producer
+  -> bounded frame queue
+  -> duplicate-frame middleman
+  -> bounded AI input queue
+  -> AI colorizer workers
+  -> bounded output queue
+  -> video encoder / final writer
+```
+
+Core idea:
+
+- Do not store a full video worth of frames in memory.
+- Keep only a bounded window of frames, such as 10 frames or another configurable queue size.
+- Let each stage run independently when work is available.
+- Let each stage wait when its input queue is empty or its output queue is full.
+- Use backpressure instead of writing every frame to disk.
+
+FFmpeg producer plan:
+
+- Make FFmpeg output frames as a stream instead of writing all frames to `temp/`.
+- Read only enough frames to fill the first bounded queue.
+- When the first queue is full, stop reading from FFmpeg so the pipe naturally applies backpressure.
+- When queue space opens, continue reading frames.
+- Treat this as pausing/resuming extraction without trying to control FFmpeg through manual process pauses.
+
+Duplicate-frame middleman plan:
+
+- Keep at least the previous frame and the current frame available.
+- Compare consecutive decoded RGB frames exactly.
+- If the current frame is a 100% pixel match with the previous frame, do not enqueue it for AI inference.
+- Store a lightweight mapping so the output stage can duplicate the previous colorized result for that frame index.
+- If one pixel differs, enqueue the frame normally.
+
+AI queue plan:
+
+- Batch frames from the AI input queue when enough frames are available.
+- Flush a smaller final batch when FFmpeg reaches end of video.
+- Keep ChromaNet, InstColorization, and Zhang behind the same queue interface where possible.
+- Preserve frame order through frame indexes, even if processing is parallel.
+
+Output plan:
+
+- Rebuild video from ordered output frames without needing all frames on disk.
+- Prefer piping frames directly into FFmpeg encoder.
+- Preserve source audio during final muxing.
+- Keep a fallback disk mode for debugging and for models that are not yet stream-friendly.
+
+Edge cases to handle before implementation:
+
+- First frame has no previous frame, so it always goes to AI.
+- Last frame must flush all queues even if a batch is not full.
+- Long duplicate runs should not grow memory; store duplicate mappings, not frame copies.
+- Any queue can block safely without dropping frames.
+- AI failures must stop the pipeline cleanly and close FFmpeg pipes.
+- Output ordering must stay exact, including duplicated frames.
+- Temporal smoothing may still need a small frame window and should be adapted separately.
+
+This is intentionally not implemented yet. It should be revisited after the AI checkpoint quality is good enough, because the rewrite changes the pipeline architecture more than the model behavior.
+
 ## Troubleshooting
 
 CUDA not available:
