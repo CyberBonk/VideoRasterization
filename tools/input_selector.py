@@ -1,4 +1,5 @@
 from pathlib import Path
+from tools.console import status
 # import imageio_ffmpeg
 
 def _clean_path_text(text: str) -> str:
@@ -12,19 +13,19 @@ def get_input_video_path(allowed_exts: set[str]) -> Path:
         print("Enter path to input video:")
         ptxt = _clean_path_text(input("> "))
         if not ptxt:
-            print("[warn] empty input. try again.")
+            status("[warn] empty input. try again.")
             continue
 
         p = Path(ptxt).expanduser().resolve()
         if not p.exists():
-            print(f"[warn] not found: {p}")
+            status(f"[warn] not found: {p}")
             continue
         if p.is_dir():
-            print("[warn] that is a folder. please provide a file.")
+            status("[warn] that is a folder. please provide a file.")
             continue
         if p.suffix.lower() not in allowed_exts:
             exts = ", ".join(sorted(allowed_exts))
-            print(f"[warn] unsupported extension '{p.suffix}'. allowed: {exts}")
+            status(f"[warn] unsupported extension '{p.suffix}'. allowed: {exts}")
             continue
 
         # # confirm that imageio-ffmpeg can find its ffmpeg binary

@@ -1,5 +1,6 @@
 from typing import Literal, Sequence
 
+from tools.console import status
 
 CHROMANET_MODEL_NAMES = {"colorize_chromanet_v3", "chromanet_v3", "chromanet"}
 
@@ -11,10 +12,10 @@ def _ask_float(prompt: str, default: float, min_value: float, max_value: float) 
     try:
         value = float(raw)
     except Exception:
-        print(f"[warn] invalid number; using {default:g}.")
+        status(f"[warn] invalid number; using {default:g}.")
         return default
     if value < min_value or value > max_value:
-        print(f"[warn] out of range; using {default:g}.")
+        status(f"[warn] out of range; using {default:g}.")
         return default
     return value
 
@@ -43,7 +44,7 @@ def choose_colorization_model(available: Sequence[str]) -> str:
         idx = int(ans) - 1
         return available[idx]
     except Exception:
-        print("[warn] invalid choice; using first.")
+        status("[warn] invalid choice; using first.")
         return available[0]
 
 
@@ -59,7 +60,7 @@ def choose_chromanet_options(model_name: str) -> dict:
     try:
         style = max(0, min(2, int(style_raw or "0")))
     except Exception:
-        print("[warn] invalid style; using realistic.")
+        status("[warn] invalid style; using realistic.")
         style = 0
 
     style_presets = {
@@ -79,7 +80,7 @@ def choose_chromanet_options(model_name: str) -> dict:
     try:
         level = max(0, min(4, int(raw or "0")))
     except Exception:
-        print("[warn] invalid strength; using default.")
+        status("[warn] invalid strength; using default.")
         level = 0
 
     presets = {
@@ -121,7 +122,7 @@ def choose_chromanet_options(model_name: str) -> dict:
             "grain_amount": max(opts["grain_amount"], style_opts["grain_amount"]),
         }
     opts["style_preset"] = style_opts["label"]
-    print(
+    status(
         f"[info] ChromaNet style={opts['style_preset']} strength={level} "
         f"confidence_threshold={opts['confidence_threshold']:.2f} "
         f"saturation_gain={opts['saturation_gain']:.2f} "

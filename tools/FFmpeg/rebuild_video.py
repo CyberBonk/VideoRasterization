@@ -10,6 +10,7 @@ from typing import Sequence
 
 import imageio_ffmpeg
 
+from tools.console import error, status
 
 _CODEC_MAP: dict[str, tuple[str, str]] = {
     "h264": ("h264_nvenc", "libx264"),
@@ -67,7 +68,7 @@ def _select_encoder(codec: str, prefer_gpu: bool, encoders: set[str]) -> str:
 
 def _print_command(cmd: Sequence[str]) -> None:
     printable = " ".join(shlex.quote(arg) for arg in cmd)
-    print(f"[info] ffmpeg command: {printable}")
+    status(f"[info] ffmpeg command: {printable}")
 
 
 def build_video_from_frames(
@@ -128,10 +129,16 @@ def build_video_from_frames(
 
     _print_command(cmd)
     try:
-        subprocess.run(cmd, check=True)
+        result = subprocess.run(cmd, text=True, capture_output=True)
+        if result.returncode != 0:
+            if result.stderr:
+                error(result.stderr.strip())
+            raise subprocess.CalledProcessError(
+                result.returncode, cmd, output=result.stdout, stderr=result.stderr
+            )
     except subprocess.CalledProcessError as err:
         raise RuntimeError(
             f"ffmpeg failed with return code {err.returncode} when encoding {frames_path}"
         ) from err
 
-    print(f"[ok] video written to {output_file}")
+    status(f"[ok] video written to {output_file}")

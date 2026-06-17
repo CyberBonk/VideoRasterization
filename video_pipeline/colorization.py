@@ -4,6 +4,7 @@ from importlib import import_module
 from pathlib import Path
 
 from .env import HAS_IPEX, LOGICAL, ipex
+from tools.console import status
 
 model_selector = import_module("tools.model_selector")
 
@@ -23,7 +24,7 @@ def run_colorization(
     color_dir.mkdir(parents=True, exist_ok=True)
 
     if HAS_IPEX and not use_gpu and ipex:
-        print("[info] optimizing with Intel oneDNN (IPEX)...")
+        status("[info] optimizing with Intel oneDNN (IPEX)...")
         ipex.enable_onednn_fusion(True)
         try:
             ipex.set_fp32_math_mode(mode="BF16")
@@ -63,7 +64,7 @@ def run_colorization(
             max_prefetch_batches=2,
             **model_options,
         )
-    print(f"[ok] colorization complete: {color_dir}")
+    status(f"[ok] colorization complete: {color_dir}")
     return color_dir
 
 

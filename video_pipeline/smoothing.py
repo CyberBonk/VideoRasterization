@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from tools.console import status
 from tools.TemporalSmoothing import apply_temporal_smoothing
 
 
@@ -13,7 +14,7 @@ def apply_temporal_smoothing_step(color_dir: Path, window_size: int | None):
     reuse the existing colorized frames without duplicating them.
     """
     if not window_size or window_size < 3:
-        print("[info] temporal smoothing skipped; using raw colorized frames.")
+        status("[info] temporal smoothing skipped; using raw colorized frames.")
         return None
 
     smooth_dir = color_dir.parent / f"{color_dir.name}_TemporalSmoothed"
@@ -25,7 +26,7 @@ def apply_temporal_smoothing_step(color_dir: Path, window_size: int | None):
         use_onnx=True,
         window_size=window_size,
     )
-    print(f"[ok] temporal smoothing complete: {smooth_dir}")
+    status(f"[ok] temporal smoothing complete: {smooth_dir}")
     return smooth_dir
 
 

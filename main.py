@@ -22,12 +22,13 @@ from video_pipeline.window_prompt import ask_temporal_window
 from video_pipeline.reporting import generate_report
 from video_pipeline.reconstruction import rebuild_video_output
 from tools import model_selector, inference_options
+from tools.console import status
 
 # --------------------------------------------------------------------
 # --- 2) Main pipeline -----------------------------------------------
 # --------------------------------------------------------------------
 def main():
-    print("=== VideoRasterization start ===")
+    status("=== VideoRasterization start ===")
     temp_root = ROOT / "temp"
     temp_root.mkdir(parents=True, exist_ok=True)
 
@@ -46,15 +47,15 @@ def main():
 
 
     use_gpu = torch.cuda.is_available()
-    print(f"[info] GPU available: {use_gpu}")
+    status(f"[info] GPU available: {use_gpu}")
     window_size = ask_temporal_window()
     color_dir = run_colorization(frames_dir, model_name, use_gpu, **model_options)
     smooth_dir = apply_temporal_smoothing_step(color_dir, window_size)
     generate_report(frames_gray_dir=frames_dir, frames_color_dir=color_dir)
     rebuild_video_output(color_dir=color_dir, smooth_dir=smooth_dir, source_video=video_path, fps=24)
 
-    print("[done] pipeline finished.")
-    print("=== End ===")
+    status("[done] pipeline finished.")
+    status("=== End ===")
 
 
 if __name__ == "__main__":

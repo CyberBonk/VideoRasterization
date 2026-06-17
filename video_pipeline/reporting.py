@@ -2,6 +2,7 @@
 
 from importlib import import_module
 from pathlib import Path
+from tools.console import status
 
 ROOT = Path(__file__).resolve().parent.parent
 report = import_module("tools.preview_report")
@@ -20,9 +21,9 @@ def generate_report(frames_gray_dir: Path, frames_color_dir: Path):
             out_png=report_png,
             out_json=report_json,
         )
-        print(f"[ok] report saved:\n - {report_png}\n - {report_json}")
+        status(f"[ok] report saved:\n - {report_png}\n - {report_json}")
     except Exception as e:
-        print(f"[warn] report failed: {e}")
+        status(f"[warn] report failed: {e}")
 
 
 __all__ = ["generate_report"]

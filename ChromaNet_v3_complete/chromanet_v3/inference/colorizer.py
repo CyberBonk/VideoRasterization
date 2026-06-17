@@ -2,6 +2,7 @@
 from __future__ import annotations
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
+import time
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -11,6 +12,11 @@ from model.chromaNet import build_model
 from model.confidence import save_confidence_heatmap
 
 _EXTS = {".jpg",".jpeg",".png",".bmp",".tiff",".tif"}
+
+try:
+    from tools.console import status
+except Exception:
+    status = print
 
 try:
     import cv2
@@ -34,7 +40,7 @@ class ChromaColorizer:
         self.model = build_model(ck.get("cfg", {}))
         self.model.load_state_dict(ck["model_state"])
         self.model.to(self.device).eval()
-        print(f"[ChromaColorizer] v3 | device={self.device}")
+        status(f"[ChromaColorizer] v3 | device={self.device}")
 
     def _pre(self, img: Image.Image):
         rgb_image = img.convert("RGB")
@@ -95,12 +101,14 @@ class ChromaColorizer:
         out_dir.mkdir(parents=True, exist_ok=True)
         if self.save_confidence: (out_dir/"confidence_maps").mkdir(exist_ok=True)
         frames = sorted([p for p in inp_dir.iterdir() if p.suffix.lower() in _EXTS])
-        if not frames: print(f"[warn] no images in {inp_dir}"); return
+        if not frames:
+            status(f"[warn] no images in {inp_dir}")
+            return
         batch_size = max(1, int(batch_size))
         prefetch_workers = max(1, int(prefetch_workers))
         save_workers = max(1, int(save_workers))
         max_inflight = max(1, int(max_prefetch_batches))
-        print(
+        status(
             f"[ChromaColorizer] {len(frames)} frames | batch={batch_size} "
             f"| prep={prefetch_workers} save={save_workers}..."
         )
@@ -120,6 +128,8 @@ class ChromaColorizer:
             for start in range(0, len(frames), batch_size)
         ]
         done = 0
+        started_at = time.perf_counter()
+        last_report = 0
 
         with ThreadPoolExecutor(max_workers=prefetch_workers) as prep_pool, \
                 ThreadPoolExecutor(max_workers=save_workers) as save_pool:
@@ -166,8 +176,14 @@ class ChromaColorizer:
                         save_confidence_heatmap(confidence[index:index + 1], cp)
 
                 done += len(batch_paths)
-                if done % 48 == 0 or done == len(frames):
-                    print(f"  {done}/{len(frames)}", end="\r", flush=True)
+                if done - last_report >= max(batch_size * 8, 48) or done == len(frames):
+                    elapsed = max(time.perf_counter() - started_at, 1e-6)
+                    fps = done / elapsed
+                    status(
+                        f"[progress] {done}/{len(frames)} frames "
+                        f"({done / len(frames) * 100:.1f}%) | {fps:.2f} fps",
+                    )
+                    last_report = done
 
                 if len(pending_saves) >= save_workers * 3:
                     completed, pending_saves = wait(
@@ -178,7 +194,7 @@ class ChromaColorizer:
 
             for future in pending_saves:
                 future.result()
-        print(f"\n[done] output: {out_dir}")
+        status(f"[done] output: {out_dir}")
 
     def _apply_confidence(self, ab: torch.Tensor, conf: torch.Tensor) -> torch.Tensor:
         threshold = max(0.0, min(self.confidence_threshold, 0.95))

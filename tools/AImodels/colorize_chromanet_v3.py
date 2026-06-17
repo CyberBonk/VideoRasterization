@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+from tools.console import status
 
 ROOT = Path(__file__).resolve().parents[2]
 CHROMANET_ROOT = ROOT / "ChromaNet_v3_complete" / "chromanet_v3"
@@ -52,7 +53,7 @@ def colorize_dir(
         saturation_gain=saturation_gain,
         grain_amount=grain_amount,
     )
-    print(
+    status(
         f"[start] ChromaNet v3 | checkpoint={checkpoint_path.name} | device={device} "
         f"| style={style_preset} "
         f"| confidence_threshold={confidence_threshold:.2f} "
