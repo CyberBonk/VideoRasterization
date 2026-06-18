@@ -16,10 +16,13 @@ from .colorize_inst import (
     prepare_transforms,
     run_siggraph,
 )
-from .siggraph_loader import load_eccv16
+from .siggraph_loader import load_siggraph17
 
 DEFAULT_IMAGE_SIZE = 256
-INST_STYLE_ECCV16 = "inst_eccv16"
+BASE_DIR = Path(__file__).resolve().parent
+TRAINED_FULL_CHECKPOINT = BASE_DIR / "checkpoints" / "coco_full_256_train2017" / "latest_net_G.pth"
+INST_STYLE_TRAINED = "inst_trained_full"
+INST_STYLE_SIGGRAPH17 = "inst_siggraph17"
 
 
 def _list_frames(frame_paths: Iterable[Path | str]) -> list[Path]:
@@ -29,14 +32,25 @@ def _list_frames(frame_paths: Iterable[Path | str]) -> list[Path]:
 
 def _resolve_style(style: str) -> str:
     """
-    InstColorization currently only supports the ECCV16 checkpoint.
-    TODO: add inst_siggraph17 once a compatible checkpoint is trained for networks.py.
+    Full-branch InstColorization uses the SIGGRAPH generator architecture.
+    Prefer the local train2017-tuned checkpoint when it exists.
     """
     normalized = style.lower()
-    if normalized in {"eccv16", INST_STYLE_ECCV16}:
-        return INST_STYLE_ECCV16
-    print(f"[info] InstColorization supports ECCV16 only; using ECCV16 instead of '{style}'.")
-    return INST_STYLE_ECCV16
+    if normalized in {"trained", "train2017", INST_STYLE_TRAINED}:
+        return INST_STYLE_TRAINED
+    if normalized in {"siggraph17", INST_STYLE_SIGGRAPH17}:
+        return INST_STYLE_SIGGRAPH17
+    print(f"[info] InstColorization unknown style '{style}'; using trained checkpoint when available.")
+    return INST_STYLE_TRAINED
+
+
+def _resolve_weights(resolved_style: str) -> Path:
+    if resolved_style == INST_STYLE_TRAINED and TRAINED_FULL_CHECKPOINT.is_file():
+        return TRAINED_FULL_CHECKPOINT
+    if resolved_style == INST_STYLE_TRAINED:
+        print(f"[warn] trained InstColorization checkpoint not found: {TRAINED_FULL_CHECKPOINT}")
+        print("[info] falling back to SIGGRAPH17 base weights.")
+    return load_siggraph17()
 
 
 def save_colorized_fullres(orig_path: Path, color_small: np.ndarray, out_path: Path) -> None:
@@ -55,7 +69,7 @@ def colorize_frames_inst(
     frame_paths: Sequence[str | Path],
     output_dir: str | Path,
     *,
-    style: str = INST_STYLE_ECCV16,
+    style: str = INST_STYLE_TRAINED,
     device: Optional[str] = None,
     image_size: int = DEFAULT_IMAGE_SIZE,
     dtype: str = "float32",
@@ -66,7 +80,7 @@ def colorize_frames_inst(
     Args:
         frame_paths: Iterable of image file paths (png/jpg/bmp/tiff).
         output_dir: Directory where colorized frames are written.
-        style: InstColorization backend label (ECCV16-only for now).
+        style: InstColorization backend label.
         device: torch device string; auto-select if None.
         image_size: resize target for inference.
         dtype: "float32" (default) or "float16".
@@ -90,9 +104,8 @@ def colorize_frames_inst(
     net.to(device=target_device, dtype=target_dtype)
     net.eval()
 
-    # ECCV16-only backend; keep label explicit for future variants.
-    _ = resolved_style  # explicit for readability
-    weight_path = load_eccv16()
+    weight_path = _resolve_weights(resolved_style)
+    print(f"[start] InstColorization | checkpoint={weight_path.name} | device={target_device}")
     load_weights(net, str(weight_path), target_device)
 
     paths = _list_frames(frame_paths)
