@@ -301,6 +301,16 @@ Edge cases to handle before implementation:
 
 This is intentionally not implemented yet. It should be revisited after the AI checkpoint quality is good enough, because the rewrite changes the pipeline architecture more than the model behavior.
 
+## Known Bugs / Quality Issues
+
+Blurry or low-resolution-looking output:
+
+- Some AI adapters still predict a `256x256` color image and then upscale the whole result back into the video frame.
+- This can make the final video look like a stretched `256x256` image, even when the extracted source frames are full resolution.
+- ChromaNet has a partial fix: it preserves the original full-resolution luminance channel and only upscales predicted color channels.
+- InstColorization and older adapters may still need the same full-resolution luminance-preserving path.
+- Test by comparing frame dimensions and sharpness before/after colorization. If dimensions match but details look smeared, the adapter is probably upscaling low-resolution RGB instead of recombining full-resolution luminance with low-resolution color.
+
 ## Troubleshooting
 
 CUDA not available:
