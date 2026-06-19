@@ -5,7 +5,9 @@ from typing import Iterable, Optional, Sequence
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from PIL import Image
+from skimage import color as skcolor
 
 from . import networks
 from . import util as inst_util
@@ -53,16 +55,18 @@ def _resolve_weights(resolved_style: str) -> Path:
     return load_siggraph17()
 
 
-def save_colorized_fullres(orig_path: Path, color_small: np.ndarray, out_path: Path) -> None:
-    """
-    Save a colorized frame resized back to the original resolution.
-    """
+def save_colorized_fullres(orig_path: Path, ab_small: torch.Tensor, opt, out_path: Path) -> None:
     with Image.open(orig_path) as im:
-        orig_w, orig_h = im.size
+        rgb_full = np.asarray(im.convert("RGB"), dtype=np.float32) / 255.0
 
-    color_img = Image.fromarray(color_small.astype("uint8"))
-    color_img = color_img.resize((orig_w, orig_h), Image.BICUBIC)
-    color_img.save(out_path, quality=95)
+    height, width = rgb_full.shape[:2]
+    l_full = skcolor.rgb2lab(rgb_full)[:, :, 0]
+    ab_full = F.interpolate(
+        ab_small.float(), size=(height, width), mode="bicubic", align_corners=False
+    )[0].detach().cpu().numpy() * opt.ab_norm
+    lab = np.stack([l_full, ab_full[0], ab_full[1]], axis=2).astype(np.float32)
+    rgb = np.clip(skcolor.lab2rgb(lab), 0.0, 1.0)
+    Image.fromarray((rgb * 255.0).round().astype(np.uint8)).save(out_path, quality=95)
 
 
 def colorize_frames_inst(
@@ -125,13 +129,7 @@ def colorize_frames_inst(
 
         with torch.inference_mode():
             out_reg = run_siggraph(net, full_lab, opt, target_device, target_dtype)
-            out_rgb = inst_util.lab2rgb(
-                torch.cat((full_lab["A"].to(target_device, target_dtype), out_reg), dim=1), opt
-            )
-
-        out_np = torch.clamp(out_rgb, 0.0, 1.0).detach().cpu().numpy()[0].transpose(1, 2, 0)
-        out_u8 = (out_np * 255.0).round().astype(np.uint8)
-        save_colorized_fullres(frame_path, out_u8, out_dir / frame_path.name)
+        save_colorized_fullres(frame_path, out_reg, opt, out_dir / frame_path.name)
 
 
 __all__ = ["colorize_frames_inst"]
