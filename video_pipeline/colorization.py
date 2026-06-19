@@ -44,7 +44,7 @@ def run_colorization(
         colorize_frames_inst(
             frame_paths=frame_paths,
             output_dir=color_dir,
-            style="eccv16",
+            style=model_options.get("style", "trained"),
             device="cuda" if use_gpu else None,
             image_size=256,
         )

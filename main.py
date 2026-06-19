@@ -24,6 +24,14 @@ from video_pipeline.reconstruction import rebuild_video_output
 from tools import model_selector, inference_options
 from tools.console import status
 
+
+def cuda_available() -> bool:
+    try:
+        return torch.cuda.is_available() and torch.cuda.device_count() > 0
+    except Exception as exc:
+        status(f"[warn] CUDA check failed: {exc}")
+        return False
+
 # --------------------------------------------------------------------
 # --- 2) Main pipeline -----------------------------------------------
 # --------------------------------------------------------------------
@@ -46,8 +54,11 @@ def main():
     model_options = inference_options.choose_chromanet_options(model_name)
 
 
-    use_gpu = torch.cuda.is_available()
-    status(f"[info] GPU available: {use_gpu}")
+    use_gpu = cuda_available()
+    if use_gpu:
+        status(f"[info] GPU available: True ({torch.cuda.get_device_name(0)})")
+    else:
+        status("[warn] GPU available: False; colorization will run on CPU.")
     window_size = ask_temporal_window()
     color_dir = run_colorization(frames_dir, model_name, use_gpu, **model_options)
     smooth_dir = apply_temporal_smoothing_step(color_dir, window_size)
