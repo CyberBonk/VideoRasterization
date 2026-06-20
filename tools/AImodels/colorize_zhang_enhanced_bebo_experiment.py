@@ -22,18 +22,22 @@ from tools.console import status
 
 try:
     import torch
+except Exception:
+    torch = None  # type: ignore
 
-    LOGICAL = os.cpu_count() or 8
-    T_THREADS = int(os.getenv("VC_THREADS", LOGICAL))
+LOGICAL = os.cpu_count() or 8
+T_THREADS = int(os.getenv("VC_THREADS", LOGICAL))
+if torch is not None:
     torch.set_grad_enabled(False)
-    torch.set_num_threads(T_THREADS)
-    torch.set_num_interop_threads(T_THREADS)
+    try:
+        torch.set_num_threads(T_THREADS)
+        torch.set_num_interop_threads(T_THREADS)
+    except RuntimeError:
+        pass
     if hasattr(torch.backends, "mkldnn"):
         torch.backends.mkldnn.enabled = True
     if hasattr(torch.backends, "cudnn"):
         torch.backends.cudnn.benchmark = True
-except Exception:
-    torch = None  # type: ignore
 
 
 def _list_frames(frames_dir: Path) -> List[Path]:

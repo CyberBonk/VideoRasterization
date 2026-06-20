@@ -148,7 +148,6 @@ def colorize_dir(
 
         # stack + forward
         if torch is not None:
-            l_orig_b = torch.cat(l_orig_list, dim=0)
             l_rs_b = torch.cat(l_rs_list, dim=0)
             with torch.inference_mode():
                 out_ab_b = mdl(l_rs_b).cpu()
