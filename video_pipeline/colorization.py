@@ -54,6 +54,7 @@ def run_colorization(
             "input_size",
             256 if model_name in ENHANCED_ZHANG_MODEL_NAMES else 224,
         )
+        batch_size = model_options.pop("batch_size", 12)
         model_selector.run_colorizer(
             model_name=model_name,
             frames_dir=model_frames_path,
@@ -62,7 +63,7 @@ def run_colorization(
             zhang_variant=None,
             preview=False,
             use_gpu=use_gpu,
-            batch_size=12,
+            batch_size=batch_size,
             num_threads=LOGICAL,
             input_size=input_size,
             progress=True,

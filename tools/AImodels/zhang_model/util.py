@@ -6,6 +6,12 @@ import torch
 import torch.nn.functional as F
 from IPython import embed
 
+try:
+	import cv2
+	_HAS_CV2 = True
+except ImportError:
+	_HAS_CV2 = False
+
 def load_img(img_path):
 	out_np = np.asarray(Image.open(img_path))
 	if(out_np.ndim==2):
@@ -19,8 +25,12 @@ def preprocess_img(img_rgb_orig, HW=(256,256), resample=3):
 	# return original size L and resized L as torch Tensors
 	img_rgb_rs = resize_img(img_rgb_orig, HW=HW, resample=resample)
 	
-	img_lab_orig = color.rgb2lab(img_rgb_orig)
-	img_lab_rs = color.rgb2lab(img_rgb_rs)
+	if _HAS_CV2:
+		img_lab_orig = cv2.cvtColor((img_rgb_orig / 255.0).astype(np.float32), cv2.COLOR_RGB2Lab)
+		img_lab_rs = cv2.cvtColor((img_rgb_rs / 255.0).astype(np.float32), cv2.COLOR_RGB2Lab)
+	else:
+		img_lab_orig = color.rgb2lab(img_rgb_orig)
+		img_lab_rs = color.rgb2lab(img_rgb_rs)
 
 	img_l_orig = img_lab_orig[:,:,0]
 	img_l_rs = img_lab_rs[:,:,0]
@@ -44,4 +54,9 @@ def postprocess_tens(tens_orig_l, out_ab, mode='bilinear'):
 		out_ab_orig = out_ab
 
 	out_lab_orig = torch.cat((tens_orig_l, out_ab_orig), dim=1)
-	return color.lab2rgb(out_lab_orig.data.cpu().numpy()[0,...].transpose((1,2,0)))
+	lab_np = out_lab_orig.data.cpu().numpy()[0,...].transpose((1,2,0))
+	
+	if _HAS_CV2:
+		return np.clip(cv2.cvtColor(lab_np, cv2.COLOR_Lab2RGB), 0.0, 1.0)
+	else:
+		return color.lab2rgb(lab_np)

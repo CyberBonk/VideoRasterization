@@ -1,0 +1,2119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VideoRasterization</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   DESIGN SYSTEM TOKENS
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --bg:          #0E0E0E;
+  --surface-1:   #161616;
+  --surface-2:   #222222;
+  --surface-3:   #2A2A2A;
+  --border:      #2E2E2E;
+  --border-soft: #222222;
+
+  --text-primary:   #FFFFFF;
+  --text-secondary: #A0A0A0;
+  --text-tertiary:  #5A5A5A;
+  --text-disabled:  #333333;
+
+  --accent:         #0062FF;
+  --accent-hover:   #0055E0;
+  --accent-pressed: #0049C0;
+  --accent-subtle:  rgba(0, 98, 255, 0.12);
+  --accent-glow:    rgba(0, 98, 255, 0.25);
+
+  --success: #00C471;
+  --warning: #FF9A00;
+  --error:   #FF4444;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --shadow-1: 0 1px 3px rgba(0,0,0,.5), 0 1px 2px rgba(0,0,0,.4);
+  --shadow-2: 0 4px 16px rgba(0,0,0,.6), 0 2px 6px rgba(0,0,0,.5);
+  --shadow-3: 0 16px 48px rgba(0,0,0,.7), 0 4px 16px rgba(0,0,0,.6);
+  --shadow-accent: 0 0 20px rgba(0,98,255,.3);
+
+  --ease-out:    cubic-bezier(0.0, 0.0, 0.2, 1.0);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-inout:  cubic-bezier(0.4, 0.0, 0.2, 1.0);
+
+  --font: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESET & BASE
+   ═══════════════════════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%; height: 100%; overflow: hidden;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; border: none; outline: none; background: none; }
+input, select, textarea { font-family: inherit; outline: none; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--surface-3); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LAYOUT
+   ═══════════════════════════════════════════════════════════════════════════ */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ─────── HEADER ─────── */
+#header {
+  display: flex;
+  align-items: center;
+  height: 52px;
+  padding: 0 20px;
+  background: rgba(14,14,14,.95);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-soft);
+  flex-shrink: 0;
+  z-index: 100;
+  gap: 12px;
+  -webkit-app-region: drag;
+}
+#header * { -webkit-app-region: no-drag; }
+.logo {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 15px; font-weight: 600; letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+.logo-icon {
+  width: 28px; height: 28px; border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--accent), #6B2FFF);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; flex-shrink: 0;
+}
+.breadcrumb {
+  flex: 1;
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--text-secondary);
+  min-width: 0;
+}
+.breadcrumb-sep { color: var(--text-tertiary); }
+.breadcrumb-current { color: var(--text-primary); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.header-actions { display: flex; align-items: center; gap: 8px; }
+
+/* ─────── MAIN ─────── */
+#main {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ─────── STATES ─────── */
+.state { 
+  position: absolute; inset: 0;
+  display: none; 
+  opacity: 0;
+  transition: opacity 180ms var(--ease-out);
+}
+.state.active { display: flex; }
+.state.visible { opacity: 1; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BUTTONS
+   ═══════════════════════════════════════════════════════════════════════════ */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 6px; height: 36px; padding: 0 16px;
+  font-size: 13px; font-weight: 500;
+  border-radius: var(--radius-md);
+  transition: background 80ms, transform 60ms, box-shadow 80ms, opacity 80ms;
+  white-space: nowrap; flex-shrink: 0;
+}
+.btn:active { transform: scale(0.97); }
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:active { background: var(--accent-pressed); }
+.btn-primary:disabled { opacity: 0.4; pointer-events: none; }
+.btn-secondary {
+  background: var(--surface-2);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+.btn-secondary:hover { background: var(--surface-3); }
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+.btn-ghost:hover { background: var(--surface-2); color: var(--text-primary); }
+.btn-danger {
+  background: rgba(255,68,68,.15);
+  color: var(--error);
+  border: 1px solid rgba(255,68,68,.2);
+}
+.btn-danger:hover { background: rgba(255,68,68,.25); }
+.btn-icon {
+  width: 36px; height: 36px; padding: 0;
+  border-radius: var(--radius-md);
+  display: flex; align-items: center; justify-content: center;
+}
+.btn-sm { height: 30px; padding: 0 12px; font-size: 12px; }
+.btn-lg { height: 44px; padding: 0 24px; font-size: 14px; }
+.btn-xl { height: 52px; padding: 0 32px; font-size: 15px; font-weight: 600; }
+.btn svg { width: 16px; height: 16px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BADGES
+   ═══════════════════════════════════════════════════════════════════════════ */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 22px; padding: 0 8px;
+  font-size: 11px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase;
+  border-radius: var(--radius-sm);
+}
+.badge-dot { width: 6px; height: 6px; border-radius: 50%; }
+.badge-processing { background: rgba(0,98,255,.15); color: var(--accent); }
+.badge-processing .badge-dot { background: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
+.badge-queued { background: rgba(90,90,90,.2); color: var(--text-secondary); }
+.badge-queued .badge-dot { background: var(--text-tertiary); }
+.badge-complete { background: rgba(0,196,113,.15); color: var(--success); }
+.badge-complete .badge-dot { background: var(--success); }
+.badge-error { background: rgba(255,68,68,.15); color: var(--error); }
+.badge-error .badge-dot { background: var(--error); }
+.badge-paused { background: rgba(255,154,0,.15); color: var(--warning); }
+.badge-paused .badge-dot { background: var(--warning); }
+.badge-ready { background: rgba(0,196,113,.1); color: var(--success); }
+.badge-needs { background: rgba(255,154,0,.1); color: var(--warning); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CARDS
+   ═══════════════════════════════════════════════════════════════════════════ */
+.card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  transition: border-color 100ms;
+}
+.card:hover { border-color: var(--border); }
+.card-hover:hover { border-color: rgba(0,98,255,.3); box-shadow: 0 0 0 1px rgba(0,98,255,.1); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INPUTS
+   ═══════════════════════════════════════════════════════════════════════════ */
+.input {
+  width: 100%; height: 36px; padding: 0 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  transition: border-color 100ms;
+}
+.input:focus { border-color: var(--accent); }
+.input::placeholder { color: var(--text-tertiary); }
+
+.range-wrap { display: flex; align-items: center; gap: 12px; }
+.range {
+  -webkit-appearance: none; appearance: none;
+  flex: 1; height: 4px;
+  background: var(--surface-3); border-radius: 2px; outline: none;
+  cursor: pointer;
+}
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--accent);
+  box-shadow: var(--shadow-1);
+  cursor: pointer;
+  transition: transform 80ms, box-shadow 80ms;
+}
+.range::-webkit-slider-thumb:hover { transform: scale(1.15); box-shadow: var(--shadow-accent); }
+.range-value { font-size: 12px; color: var(--text-secondary); width: 32px; text-align: right; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PROGRESS BARS
+   ═══════════════════════════════════════════════════════════════════════════ */
+.progress-track {
+  height: 4px; background: var(--surface-3); border-radius: 2px; overflow: hidden;
+}
+.progress-fill {
+  height: 100%; background: var(--accent);
+  border-radius: 2px;
+  transition: width 200ms linear;
+  position: relative; overflow: hidden;
+}
+.progress-fill.shimmer::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.15) 50%, transparent 100%);
+  animation: shimmer 1.8s linear infinite;
+}
+.progress-lg .progress-track { height: 6px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ANIMATIONS
+   ═══════════════════════════════════════════════════════════════════════════ */
+@keyframes pulse {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+@keyframes shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(200%); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes dropZonePulse {
+  0%,100% { border-color: rgba(0,98,255,.3); }
+  50% { border-color: rgba(0,98,255,.7); }
+}
+@keyframes glow {
+  0%,100% { box-shadow: 0 0 20px rgba(0,98,255,.2); }
+  50% { box-shadow: 0 0 40px rgba(0,98,255,.4); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TOASTS
+   ═══════════════════════════════════════════════════════════════════════════ */
+#toast-container {
+  position: fixed; bottom: 20px; right: 20px;
+  display: flex; flex-direction: column; gap: 8px;
+  z-index: 9999; pointer-events: none;
+}
+.toast {
+  width: 320px; padding: 14px 16px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-3);
+  display: flex; align-items: flex-start; gap: 10px;
+  animation: slideUp 160ms var(--ease-spring) both;
+  pointer-events: all;
+}
+.toast-icon { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; }
+.toast-content { flex: 1; min-width: 0; }
+.toast-title { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+.toast-msg { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.toast-success { border-color: rgba(0,196,113,.3); }
+.toast-success .toast-icon { color: var(--success); }
+.toast-error { border-color: rgba(255,68,68,.3); }
+.toast-error .toast-icon { color: var(--error); }
+.toast-info { border-color: rgba(0,98,255,.3); }
+.toast-info .toast-icon { color: var(--accent); }
+.toast-warning { border-color: rgba(255,154,0,.3); }
+.toast-warning .toast-icon { color: var(--warning); }
+.toast.hiding { animation: none; opacity: 0; transition: opacity 120ms; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ████  STATE 1 — WELCOME  ████
+   ═══════════════════════════════════════════════════════════════════════════ */
+#state-welcome {
+  flex-direction: column;
+  padding: 32px 40px;
+  overflow-y: auto;
+  gap: 32px;
+}
+
+/* Drop Zone */
+.drop-zone-wrapper {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 16px;
+}
+.drop-zone {
+  width: 100%; max-width: 640px;
+  min-height: 280px;
+  border: 2px dashed rgba(0,98,255,.35);
+  border-radius: var(--radius-lg);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 16px; padding: 48px 32px;
+  cursor: pointer;
+  transition: all 150ms var(--ease-out);
+  position: relative;
+  animation: dropZonePulse 2.8s ease-in-out infinite;
+  background: rgba(0,98,255,.03);
+}
+.drop-zone:hover, .drop-zone.drag-over {
+  border-color: var(--accent);
+  border-style: solid;
+  background: rgba(0,98,255,.06);
+  transform: scale(1.005);
+  animation: none;
+  box-shadow: var(--shadow-accent);
+}
+.drop-zone.drag-over {
+  transform: scale(1.01);
+  background: rgba(0,98,255,.1);
+}
+.drop-icon {
+  width: 64px; height: 64px;
+  border-radius: var(--radius-lg);
+  background: var(--accent-subtle);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--accent);
+  transition: transform 150ms var(--ease-spring);
+}
+.drop-zone:hover .drop-icon, .drop-zone.drag-over .drop-icon {
+  transform: scale(1.1) translateY(-2px);
+}
+.drop-title { font-size: 18px; font-weight: 600; color: var(--text-primary); }
+.drop-sub { font-size: 13px; color: var(--text-secondary); text-align: center; }
+.drop-formats {
+  display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+}
+.fmt-chip {
+  font-size: 11px; font-weight: 500; letter-spacing: 0.06em;
+  padding: 3px 8px; border-radius: var(--radius-sm);
+  background: var(--surface-2); color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+.drop-actions { display: flex; gap: 10px; margin-top: 8px; }
+
+/* Recent Rail */
+.section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.section-title {
+  font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.recent-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+.recent-card {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: var(--radius-md); overflow: hidden; cursor: pointer;
+  transition: all 100ms var(--ease-out);
+  animation: fadeIn 200ms var(--ease-out) both;
+}
+.recent-card:hover { border-color: rgba(0,98,255,.4); transform: translateY(-2px); box-shadow: var(--shadow-2); }
+.recent-thumb {
+  width: 100%; height: 110px;
+  background: var(--surface-2);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-tertiary);
+  font-size: 28px;
+  overflow: hidden;
+  position: relative;
+}
+.recent-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.recent-thumb-overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,.7) 0%, transparent 60%);
+  opacity: 0; transition: opacity 150ms;
+}
+.recent-card:hover .recent-thumb-overlay { opacity: 1; }
+.recent-thumb-play {
+  position: absolute; bottom: 8px; right: 8px;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: rgba(0,98,255,.9);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 10px;
+  opacity: 0; transform: scale(0.8);
+  transition: all 150ms var(--ease-spring);
+}
+.recent-card:hover .recent-thumb-play { opacity: 1; transform: scale(1); }
+.recent-info { padding: 10px 12px; }
+.recent-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.recent-meta { font-size: 11px; color: var(--text-secondary); margin-top: 3px; display: flex; align-items: center; gap: 6px; }
+
+/* Hardware Status */
+.hw-bar {
+  display: flex; align-items: center; gap: 16px;
+  padding: 14px 20px;
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.hw-item { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.hw-label { color: var(--text-tertiary); }
+.hw-value { color: var(--text-primary); font-weight: 500; }
+.hw-badge {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
+  padding: 2px 6px; border-radius: 3px;
+}
+.hw-badge-cuda { background: rgba(0,196,113,.15); color: var(--success); }
+.hw-badge-nocuda { background: rgba(90,90,90,.15); color: var(--text-secondary); }
+.hw-badge-ipex { background: rgba(0,98,255,.15); color: var(--accent); }
+.hw-sep { width: 1px; height: 20px; background: var(--border); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ████  STATE 2 — CONFIGURATION  ████
+   ═══════════════════════════════════════════════════════════════════════════ */
+#state-config {
+  flex-direction: row;
+  overflow: hidden;
+}
+.config-preview-col {
+  flex: 1; display: flex; flex-direction: column; padding: 24px; gap: 16px; overflow: hidden;
+}
+.config-panel-col {
+  width: 360px; flex-shrink: 0;
+  background: var(--surface-1);
+  border-left: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+}
+.config-panel-inner { padding: 24px; display: flex; flex-direction: column; gap: 24px; }
+
+.preview-frame {
+  flex: 1; border-radius: var(--radius-lg); overflow: hidden;
+  background: var(--surface-2);
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  min-height: 200px;
+}
+.preview-frame img { width: 100%; height: 100%; object-fit: contain; }
+.preview-frame-placeholder {
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  color: var(--text-tertiary); font-size: 13px;
+}
+
+.video-info-bar {
+  display: flex; gap: 20px; padding: 12px 16px;
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+}
+.vi-item { display: flex; gap: 6px; }
+.vi-label { color: var(--text-tertiary); }
+.vi-value { color: var(--text-primary); font-weight: 500; }
+
+/* Preset Selector */
+.preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.preset-card {
+  padding: 12px; border-radius: var(--radius-md);
+  border: 2px solid var(--border-soft);
+  cursor: pointer; transition: all 100ms var(--ease-out);
+  background: var(--surface-2);
+  position: relative;
+}
+.preset-card:hover { border-color: rgba(0,98,255,.3); background: var(--surface-3); }
+.preset-card.selected {
+  border-color: var(--accent);
+  background: rgba(0,98,255,.06);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.preset-name { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+.preset-desc { font-size: 11px; color: var(--text-secondary); margin-top: 4px; line-height: 1.4; }
+.preset-stars { display: flex; gap: 2px; margin-top: 8px; }
+.star { width: 8px; height: 8px; border-radius: 50%; }
+.star.filled { background: var(--accent); }
+.star.empty { background: var(--surface-3); }
+.preset-check {
+  position: absolute; top: 8px; right: 8px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--accent);
+  display: none; align-items: center; justify-content: center;
+  color: #fff; font-size: 9px;
+}
+.preset-card.selected .preset-check { display: flex; }
+
+/* Model Selector */
+.model-list { display: flex; flex-direction: column; gap: 8px; }
+.model-card {
+  padding: 12px 14px; border-radius: var(--radius-md);
+  border: 1.5px solid var(--border-soft);
+  cursor: pointer; transition: all 100ms var(--ease-out);
+  background: var(--surface-2);
+  display: flex; align-items: center; gap: 12px;
+}
+.model-card:hover { border-color: rgba(0,98,255,.3); }
+.model-card.selected { border-color: var(--accent); background: rgba(0,98,255,.06); }
+.model-card.disabled { opacity: 0.5; cursor: default; pointer-events: none; }
+.model-icon {
+  width: 32px; height: 32px; border-radius: var(--radius-sm);
+  background: var(--accent-subtle); color: var(--accent);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  font-size: 14px;
+}
+.model-info { flex: 1; min-width: 0; }
+.model-name { font-size: 13px; font-weight: 500; }
+.model-arch { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+.model-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+
+/* Section label */
+.config-section-label {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-tertiary); margin-bottom: 10px;
+}
+
+/* Smoothing controls */
+.control-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.control-label { font-size: 12px; color: var(--text-secondary); display: flex; justify-content: space-between; }
+.toggle-row {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;
+}
+.toggle-label { font-size: 13px; color: var(--text-primary); }
+.toggle {
+  width: 40px; height: 22px; border-radius: 11px;
+  background: var(--surface-3); cursor: pointer;
+  position: relative; transition: background 150ms;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.toggle.on { background: var(--accent); border-color: var(--accent); }
+.toggle::after {
+  content: ''; position: absolute;
+  top: 2px; left: 2px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--text-secondary);
+  transition: transform 150ms var(--ease-out), background 150ms;
+}
+.toggle.on::after { transform: translateX(18px); background: #fff; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ████  STATE 3 — PREVIEW  ████
+   ═══════════════════════════════════════════════════════════════════════════ */
+#state-preview {
+  flex-direction: column;
+  padding: 20px;
+  gap: 16px;
+  overflow: hidden;
+}
+.viewer-wrapper {
+  flex: 1; position: relative; border-radius: var(--radius-lg);
+  overflow: hidden; background: #000;
+  display: flex; align-items: center; justify-content: center;
+  min-height: 300px;
+}
+.viewer-wrapper video { width: 100%; height: 100%; object-fit: contain; }
+.viewer-placeholder {
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  color: var(--text-tertiary); font-size: 14px;
+}
+.viewer-controls-overlay {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  padding: 16px 20px 20px;
+  background: linear-gradient(to top, rgba(0,0,0,.8) 0%, transparent 100%);
+  display: flex; align-items: center; gap: 12px;
+  opacity: 0; transition: opacity 200ms var(--ease-out);
+}
+.viewer-wrapper:hover .viewer-controls-overlay { opacity: 1; }
+.comparison-toolbar {
+  position: absolute; top: 12px; right: 12px;
+  display: flex; gap: 4px; 
+  background: rgba(14,14,14,.85); backdrop-filter: blur(8px);
+  border: 1px solid var(--border); border-radius: var(--radius-md); padding: 4px;
+  opacity: 0; transition: opacity 200ms;
+}
+.viewer-wrapper:hover .comparison-toolbar { opacity: 1; }
+.cmp-btn {
+  padding: 6px 10px; border-radius: var(--radius-sm);
+  font-size: 11px; font-weight: 500; color: var(--text-secondary);
+  cursor: pointer; transition: all 80ms;
+}
+.cmp-btn:hover { background: var(--surface-2); color: var(--text-primary); }
+.cmp-btn.active { background: var(--accent); color: #fff; }
+
+/* Timeline */
+.timeline-wrap {
+  height: 72px; flex-shrink: 0;
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  display: flex; flex-direction: column; position: relative;
+  overflow: hidden; cursor: pointer;
+}
+.timeline-strip {
+  flex: 1; display: flex; align-items: center;
+  padding: 0 8px; gap: 4px; overflow: hidden; position: relative;
+}
+.timeline-thumb {
+  height: 48px; min-width: 80px; border-radius: 4px;
+  background: var(--surface-2); overflow: hidden; flex-shrink: 0;
+  border: 1px solid var(--border);
+  transition: transform 80ms var(--ease-spring);
+}
+.timeline-thumb:hover { transform: scaleY(1.05); border-color: var(--accent); }
+.timeline-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.timeline-playhead {
+  position: absolute; top: 0; bottom: 0; width: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  pointer-events: none; z-index: 10;
+}
+.timeline-time-bar {
+  height: 20px; display: flex; align-items: center;
+  padding: 0 12px; border-top: 1px solid var(--border-soft);
+  font-size: 10px; color: var(--text-tertiary);
+  justify-content: space-between;
+}
+.playback-bar {
+  display: flex; align-items: center; gap: 8px;
+}
+.playback-time { font-size: 12px; color: var(--text-secondary); font-variant-numeric: tabular-nums; min-width: 80px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ████  STATE 4 — PROCESSING  ████
+   ═══════════════════════════════════════════════════════════════════════════ */
+#state-processing {
+  flex-direction: row;
+  overflow: hidden;
+}
+.proc-main {
+  flex: 1; display: flex; flex-direction: column; padding: 24px; gap: 20px; overflow: hidden;
+}
+.proc-side {
+  width: 340px; flex-shrink: 0;
+  background: var(--surface-1); border-left: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+}
+.proc-side-inner { padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+
+.live-preview-box {
+  flex: 1; border-radius: var(--radius-lg);
+  background: #000; display: flex; align-items: center; justify-content: center;
+  position: relative; overflow: hidden; min-height: 220px;
+}
+.live-preview-box img { width: 100%; height: 100%; object-fit: contain; }
+.live-badge {
+  position: absolute; top: 12px; left: 12px;
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: var(--radius-sm);
+  background: rgba(0,98,255,.85); backdrop-filter: blur(4px);
+  font-size: 11px; font-weight: 600; color: #fff; letter-spacing: 0.04em;
+}
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: #fff; animation: pulse 1s ease-in-out infinite; }
+.live-preview-placeholder {
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  color: var(--text-tertiary);
+}
+.spinner {
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 3px solid var(--surface-3);
+  border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+
+/* Stage progress */
+.stage-list { display: flex; flex-direction: column; gap: 8px; }
+.stage-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; border-radius: var(--radius-md);
+  background: var(--surface-2); border: 1px solid var(--border-soft);
+}
+.stage-item.active { border-color: rgba(0,98,255,.4); background: rgba(0,98,255,.05); }
+.stage-item.complete { border-color: rgba(0,196,113,.3); background: rgba(0,196,113,.04); }
+.stage-icon {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; flex-shrink: 0;
+}
+.stage-item.pending .stage-icon { background: var(--surface-3); color: var(--text-tertiary); }
+.stage-item.active .stage-icon { background: var(--accent); color: #fff; animation: glow 1.5s ease-in-out infinite; }
+.stage-item.complete .stage-icon { background: var(--success); color: #fff; }
+.stage-info { flex: 1; min-width: 0; }
+.stage-name { font-size: 13px; font-weight: 500; }
+.stage-detail { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+.stage-prog { margin-top: 6px; }
+
+/* Stats cards */
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stat-card {
+  padding: 12px; border-radius: var(--radius-md);
+  background: var(--surface-2); border: 1px solid var(--border-soft);
+}
+.stat-label { font-size: 10px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+.stat-value { font-size: 22px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; }
+.stat-unit { font-size: 11px; font-weight: 400; color: var(--text-secondary); margin-left: 3px; }
+.stat-sub { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
+
+/* System meters */
+.meter-row {
+  display: flex; flex-direction: column; gap: 6px; padding: 12px 14px;
+  background: var(--surface-2); border-radius: var(--radius-md);
+  border: 1px solid var(--border-soft);
+}
+.meter-header { display: flex; justify-content: space-between; font-size: 12px; }
+.meter-name { color: var(--text-secondary); font-weight: 500; }
+.meter-pct { color: var(--text-primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+.meter-bar { height: 3px; background: var(--surface-3); border-radius: 2px; overflow: hidden; }
+.meter-fill { height: 100%; border-radius: 2px; transition: width 500ms var(--ease-out); }
+.meter-fill-cpu { background: linear-gradient(90deg, #0062FF, #6B2FFF); }
+.meter-fill-gpu { background: linear-gradient(90deg, #00C471, #0062FF); }
+.meter-fill-ram { background: linear-gradient(90deg, #FF9A00, #FF6B00); }
+.meter-fill-disk { background: linear-gradient(90deg, #6B2FFF, #FF6B9D); }
+
+/* Sparkline canvas */
+.sparkline-wrap {
+  padding: 12px 14px;
+  background: var(--surface-2); border-radius: var(--radius-md);
+  border: 1px solid var(--border-soft);
+}
+.sparkline-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.sparkline-title { font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.06em; }
+.sparkline-current { font-size: 18px; font-weight: 700; color: var(--accent); }
+.sparkline-unit { font-size: 11px; color: var(--text-secondary); }
+canvas.sparkline { width: 100%; height: 48px; display: block; }
+
+/* ETA area */
+.eta-bar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 16px;
+  background: var(--surface-2); border-radius: var(--radius-md); border: 1px solid var(--border-soft);
+  font-size: 12px;
+}
+.eta-item { display: flex; flex-direction: column; gap: 2px; }
+.eta-label { color: var(--text-tertiary); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; }
+.eta-val { font-size: 15px; font-weight: 600; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ████  STATE 5 — REVIEW  ████
+   ═══════════════════════════════════════════════════════════════════════════ */
+#state-review {
+  flex-direction: column;
+  padding: 24px;
+  gap: 20px;
+  overflow-y: auto;
+}
+.review-player {
+  width: 100%; border-radius: var(--radius-lg); overflow: hidden;
+  background: #000; position: relative;
+  aspect-ratio: 16/9;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  max-width: 800px; margin: 0 auto;
+}
+.review-player video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.review-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+}
+.output-card { display: flex; flex-direction: column; gap: 12px; }
+.output-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-soft); }
+.output-key { font-size: 12px; color: var(--text-secondary); }
+.output-val { font-size: 12px; color: var(--text-primary); font-weight: 500; }
+.output-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+
+.report-card { display: flex; flex-direction: column; gap: 12px; }
+.report-frames { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.report-frame-thumb {
+  border-radius: var(--radius-sm); overflow: hidden;
+  background: var(--surface-2); aspect-ratio: 16/10;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-tertiary); font-size: 11px;
+}
+.report-frame-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.report-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.report-stat { text-align: center; }
+.report-stat-val { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+.report-stat-label { font-size: 10px; color: var(--text-tertiary); margin-top: 2px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   QUEUE PANEL
+   ═══════════════════════════════════════════════════════════════════════════ */
+.queue-section { }
+.queue-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 24px; color: var(--text-tertiary); font-size: 12px; text-align: center;
+}
+.queue-empty-icon { font-size: 28px; margin-bottom: 4px; }
+.queue-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 0; border-bottom: 1px solid var(--border-soft);
+  animation: slideInRight 150ms var(--ease-spring) both;
+}
+.queue-item:last-child { border-bottom: none; }
+.queue-thumb {
+  width: 44px; height: 28px; border-radius: 4px;
+  background: var(--surface-3); overflow: hidden; flex-shrink: 0;
+}
+.queue-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.queue-info { flex: 1; min-width: 0; }
+.queue-name { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.queue-sub { font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
+.queue-actions { display: flex; gap: 4px; }
+.queue-act-btn {
+  width: 24px; height: 24px; border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-tertiary); cursor: pointer; font-size: 11px;
+  transition: all 80ms;
+}
+.queue-act-btn:hover { background: var(--surface-3); color: var(--text-primary); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EMPTY STATES
+   ═══════════════════════════════════════════════════════════════════════════ */
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; padding: 48px 24px; text-align: center;
+  animation: fadeIn 200ms var(--ease-out) both;
+}
+.empty-state-icon {
+  width: 56px; height: 56px; border-radius: var(--radius-lg);
+  background: var(--surface-2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; margin-bottom: 4px;
+}
+.empty-state-title { font-size: 16px; font-weight: 600; color: var(--text-primary); }
+.empty-state-desc { font-size: 13px; color: var(--text-secondary); max-width: 280px; line-height: 1.6; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   WIPE COMPARISON
+   ═══════════════════════════════════════════════════════════════════════════ */
+.wipe-container {
+  position: relative; width: 100%; height: 100%; overflow: hidden;
+}
+.wipe-before, .wipe-after {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.wipe-before { clip-path: inset(0 50% 0 0); }
+.wipe-after { clip-path: inset(0 0 0 50%); }
+.wipe-handle {
+  position: absolute; top: 0; bottom: 0;
+  width: 2px; left: 50%;
+  background: var(--accent);
+  cursor: col-resize; z-index: 10;
+  box-shadow: 0 0 12px var(--accent);
+  transition: box-shadow 80ms;
+}
+.wipe-handle::before {
+  content: ''; position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--accent);
+  box-shadow: var(--shadow-2);
+  display: flex; align-items: center; justify-content: center;
+}
+.wipe-label-before, .wipe-label-after {
+  position: absolute; top: 12px;
+  padding: 4px 10px; border-radius: var(--radius-sm);
+  background: rgba(14,14,14,.85); backdrop-filter: blur(4px);
+  font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+.wipe-label-before { left: 12px; }
+.wipe-label-after { right: 12px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DIVIDERS & MISC
+   ═══════════════════════════════════════════════════════════════════════════ */
+.divider { height: 1px; background: var(--border-soft); margin: 0; }
+.text-sm { font-size: 12px; }
+.text-xs { font-size: 11px; }
+.text-secondary { color: var(--text-secondary); }
+.text-primary { color: var(--text-primary); }
+.font-medium { font-weight: 500; }
+.font-bold { font-weight: 700; }
+.flex { display: flex; }
+.items-center { align-items: center; }
+.gap-2 { gap: 8px; }
+.gap-3 { gap: 12px; }
+.gap-4 { gap: 16px; }
+.mt-2 { margin-top: 8px; }
+.mt-3 { margin-top: 12px; }
+.w-full { width: 100%; }
+.truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scrollable { overflow-y: auto; }
+
+/* Scroll fade */
+.fade-scroll {
+  mask-image: linear-gradient(to bottom, transparent 0, black 40px, black calc(100% - 40px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 40px, black calc(100% - 40px), transparent 100%);
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- ─── HEADER ─────────────────────────────────────────────────────── -->
+  <header id="header">
+    <div class="logo">
+      <div class="logo-icon">⬡</div>
+      VideoRasterization
+    </div>
+    <div class="breadcrumb" id="breadcrumb">
+      <span class="breadcrumb-current">Welcome</span>
+    </div>
+    <div class="header-actions" id="header-actions">
+      <div id="hw-chip" style="display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text-secondary);padding:6px 12px;background:var(--surface-1);border:1px solid var(--border);border-radius:var(--radius-md);">
+        <span>Detecting hardware…</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ─── MAIN ──────────────────────────────────────────────────────── -->
+  <main id="main">
+
+    <!-- ══════════ STATE 1: WELCOME ══════════ -->
+    <div class="state" id="state-welcome">
+      <div class="drop-zone-wrapper" style="width:100%;max-width:900px;margin:0 auto;padding:32px 40px;display:flex;flex-direction:column;gap:32px;">
+
+        <!-- Drop Zone -->
+        <div style="display:flex;flex-direction:column;align-items:center;">
+          <div class="drop-zone" id="drop-zone" onclick="CS.browseFile()">
+            <div class="drop-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </div>
+            <div class="drop-title">Drag and drop video here</div>
+            <div class="drop-sub">or click to browse files</div>
+            <div class="drop-formats">
+              <span class="fmt-chip">MP4</span>
+              <span class="fmt-chip">MOV</span>
+              <span class="fmt-chip">MKV</span>
+              <span class="fmt-chip">AVI</span>
+              <span class="fmt-chip">WebM</span>
+              <span class="fmt-chip">M4V</span>
+            </div>
+          </div>
+          <div class="drop-actions" style="margin-top:16px;">
+            <button class="btn btn-secondary btn-sm" onclick="CS.browseFolder()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              Open Folder
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="CS.browseFile()">Browse Files</button>
+          </div>
+        </div>
+
+        <!-- Recent Projects -->
+        <div id="recent-section">
+          <div class="section-header">
+            <span class="section-title">Recent Projects</span>
+            <button class="btn btn-ghost btn-sm" onclick="CS.clearHistory()">Clear</button>
+          </div>
+          <div class="recent-grid" id="recent-grid">
+            <!-- populated by JS -->
+          </div>
+          <div id="recent-empty" class="empty-state" style="display:none;">
+            <div class="empty-state-icon">📂</div>
+            <div class="empty-state-title">No recent projects</div>
+            <div class="empty-state-desc">Your processed videos will appear here for quick access</div>
+          </div>
+        </div>
+
+        <!-- Hardware Status -->
+        <div class="hw-bar" id="hw-bar">
+          <div class="hw-item"><span class="hw-label">Loading hardware…</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ STATE 2: CONFIGURATION ══════════ -->
+    <div class="state" id="state-config">
+      <!-- Left: Preview -->
+      <div class="config-preview-col">
+        <div class="preview-frame" id="preview-frame">
+          <div class="preview-frame-placeholder">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" style="color:var(--text-tertiary)"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/><line x1="12" y1="17" x2="12" y2="3"/></svg>
+            <span>Loading preview…</span>
+          </div>
+        </div>
+        <div class="video-info-bar" id="video-info-bar">
+          <div class="vi-item"><span class="vi-label">File</span><span class="vi-value" id="vi-name">—</span></div>
+          <div class="vi-item"><span class="vi-label">Duration</span><span class="vi-value" id="vi-dur">—</span></div>
+          <div class="vi-item"><span class="vi-label">FPS</span><span class="vi-value" id="vi-fps">—</span></div>
+          <div class="vi-item"><span class="vi-label">Resolution</span><span class="vi-value" id="vi-res">—</span></div>
+        </div>
+      </div>
+
+      <!-- Right: Config Panel -->
+      <div class="config-panel-col">
+        <div class="config-panel-inner">
+
+          <!-- Presets -->
+          <div>
+            <div class="config-section-label">Processing Preset</div>
+            <div class="preset-grid" id="preset-grid">
+              <!-- populated by JS -->
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- Models -->
+          <div>
+            <div class="config-section-label">AI Model</div>
+            <div class="model-list" id="model-list">
+              <!-- populated by JS -->
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- Smoothing -->
+          <div>
+            <div class="config-section-label">Temporal Smoothing</div>
+            <div class="toggle-row">
+              <span class="toggle-label">Enable Smoothing</span>
+              <div class="toggle on" id="smooth-toggle" onclick="CS.toggleSmoothing()"></div>
+            </div>
+            <div id="smooth-controls">
+              <div class="control-row">
+                <label class="control-label"><span>Window Size</span><span id="smooth-window-val">9</span></label>
+                <div class="range-wrap">
+                  <input type="range" class="range" min="3" max="21" step="2" value="9" id="smooth-window"
+                    oninput="document.getElementById('smooth-window-val').textContent=this.value">
+                </div>
+              </div>
+              <div class="control-row">
+                <label class="control-label"><span>Anchor Weight</span><span id="smooth-anchor-val">0.65</span></label>
+                <div class="range-wrap">
+                  <input type="range" class="range" min="0" max="1" step="0.05" value="0.65" id="smooth-anchor"
+                    oninput="document.getElementById('smooth-anchor-val').textContent=parseFloat(this.value).toFixed(2)">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- Output -->
+          <div>
+            <div class="config-section-label">Output</div>
+            <div class="control-row">
+              <label class="control-label"><span>Codec</span></label>
+              <select class="input" id="output-codec" style="height:36px;padding:0 10px;cursor:pointer;">
+                <option value="h264">H.264 (Recommended)</option>
+                <option value="h265">H.265 / HEVC</option>
+                <option value="av1">AV1 (MKV)</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="margin-top:8px;">
+            <button class="btn btn-primary w-full btn-lg" id="start-btn" onclick="CS.startProcessing()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              Start Processing
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ STATE 3: PREVIEW ══════════ -->
+    <div class="state" id="state-preview">
+      <div class="viewer-wrapper" id="preview-viewer">
+        <video id="input-video-player" controls style="width:100%;height:100%;background:#000;display:none;"></video>
+        <div class="viewer-placeholder" id="preview-viewer-placeholder">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/></svg>
+          <span>No preview available yet</span>
+          <button class="btn btn-secondary" onclick="CS.goToConfig()">← Back to Configure</button>
+        </div>
+        <div class="comparison-toolbar">
+          <div class="cmp-btn active" onclick="CS.setCmpMode('wipe')">Wipe</div>
+          <div class="cmp-btn" onclick="CS.setCmpMode('side')">Side by Side</div>
+          <div class="cmp-btn" onclick="CS.setCmpMode('split')">Split</div>
+        </div>
+      </div>
+      <div class="timeline-wrap" id="preview-timeline">
+        <div class="timeline-strip" id="timeline-strip">
+          <!-- thumbnails -->
+          <div class="timeline-playhead" id="timeline-playhead"></div>
+        </div>
+        <div class="timeline-time-bar">
+          <span>0:00</span>
+          <span id="timeline-dur">—</span>
+        </div>
+      </div>
+      <div class="playback-bar">
+        <button class="btn btn-ghost btn-icon" onclick="CS.seek(-10)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg></button>
+        <button class="btn btn-secondary btn-icon" id="play-pause-btn" onclick="CS.togglePlay()"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+        <button class="btn btn-ghost btn-icon" onclick="CS.seek(10)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg></button>
+        <span class="playback-time" id="playback-time">0:00 / 0:00</span>
+        <div style="flex:1;"></div>
+        <button class="btn btn-secondary btn-sm" onclick="CS.startProcessing()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Process
+        </button>
+      </div>
+    </div>
+
+    <!-- ══════════ STATE 4: PROCESSING ══════════ -->
+    <div class="state" id="state-processing">
+      <!-- Main area -->
+      <div class="proc-main">
+        <!-- Live Preview -->
+        <div class="live-preview-box" id="live-preview-box">
+          <div class="live-preview-placeholder">
+            <div class="spinner"></div>
+            <span style="font-size:13px;color:var(--text-tertiary);margin-top:12px;">Initializing pipeline…</span>
+          </div>
+          <div class="live-badge" id="live-badge" style="display:none;">
+            <div class="live-dot"></div>
+            LIVE
+          </div>
+        </div>
+
+        <!-- Overall progress -->
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;">
+            <span id="proc-stage-label" style="font-size:14px;font-weight:600;">Initializing…</span>
+            <span id="proc-frame-counter" style="font-size:12px;color:var(--text-secondary);">0 / 0 frames</span>
+          </div>
+          <div class="progress-track progress-lg">
+            <div class="progress-fill shimmer" id="main-progress-fill" style="width:0%"></div>
+          </div>
+
+          <!-- ETA -->
+          <div class="eta-bar">
+            <div class="eta-item"><div class="eta-label">ETA</div><div class="eta-val" id="eta-val">—</div></div>
+            <div class="eta-item"><div class="eta-label">Elapsed</div><div class="eta-val" id="elapsed-val">0:00</div></div>
+            <div class="eta-item"><div class="eta-label">FPS</div><div class="eta-val" id="fps-val">—</div></div>
+            <div class="eta-item"><div class="eta-label">Stage</div><div class="eta-val" id="stage-val">—</div></div>
+          </div>
+        </div>
+
+        <!-- Stage pipeline -->
+        <div class="stage-list">
+          <div class="stage-item pending" id="stage-extraction">
+            <div class="stage-icon">1</div>
+            <div class="stage-info">
+              <div class="stage-name">Frame Extraction</div>
+              <div class="stage-detail" id="stage-extraction-detail">Waiting…</div>
+            </div>
+          </div>
+          <div class="stage-item pending" id="stage-colorization">
+            <div class="stage-icon">2</div>
+            <div class="stage-info">
+              <div class="stage-name">AI Colorization</div>
+              <div class="stage-detail" id="stage-colorization-detail">Waiting…</div>
+              <div class="stage-prog" id="stage-colorization-prog" style="display:none;">
+                <div class="progress-track"><div class="progress-fill shimmer" id="color-prog-fill" style="width:0%"></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="stage-item pending" id="stage-smoothing">
+            <div class="stage-icon">3</div>
+            <div class="stage-info">
+              <div class="stage-name">Temporal Smoothing</div>
+              <div class="stage-detail" id="stage-smoothing-detail">Waiting…</div>
+            </div>
+          </div>
+          <div class="stage-item pending" id="stage-encoding">
+            <div class="stage-icon">4</div>
+            <div class="stage-info">
+              <div class="stage-name">Video Encoding</div>
+              <div class="stage-detail" id="stage-encoding-detail">Waiting…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Side panel -->
+      <div class="proc-side">
+        <div class="proc-side-inner">
+          <div class="section-title">System Metrics</div>
+
+          <!-- CPU -->
+          <div class="meter-row">
+            <div class="meter-header"><span class="meter-name">CPU</span><span class="meter-pct" id="cpu-pct">0%</span></div>
+            <div class="meter-bar"><div class="meter-fill meter-fill-cpu" id="cpu-bar" style="width:0%"></div></div>
+          </div>
+          <!-- GPU -->
+          <div class="meter-row" id="gpu-meter">
+            <div class="meter-header"><span class="meter-name">GPU</span><span class="meter-pct" id="gpu-pct">—</span></div>
+            <div class="meter-bar"><div class="meter-fill meter-fill-gpu" id="gpu-bar" style="width:0%"></div></div>
+            <div style="font-size:10px;color:var(--text-tertiary);margin-top:4px;" id="vram-label">VRAM —</div>
+          </div>
+          <!-- RAM -->
+          <div class="meter-row">
+            <div class="meter-header"><span class="meter-name">RAM</span><span class="meter-pct" id="ram-pct">0%</span></div>
+            <div class="meter-bar"><div class="meter-fill meter-fill-ram" id="ram-bar" style="width:0%"></div></div>
+            <div style="font-size:10px;color:var(--text-tertiary);margin-top:4px;" id="ram-label">— GB</div>
+          </div>
+
+          <!-- FPS sparkline -->
+          <div class="sparkline-wrap">
+            <div class="sparkline-header">
+              <span class="sparkline-title">Processing Speed</span>
+              <span><span class="sparkline-current" id="sparkline-fps">—</span><span class="sparkline-unit"> fps</span></span>
+            </div>
+            <canvas class="sparkline" id="fps-canvas" width="280" height="48"></canvas>
+          </div>
+
+          <!-- Frame stats -->
+          <div class="stat-grid">
+            <div class="stat-card">
+              <div class="stat-label">Completed</div>
+              <div class="stat-value" id="frames-done">0</div>
+              <div class="stat-sub" id="frames-done-sub">frames</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Remaining</div>
+              <div class="stat-value" id="frames-left">—</div>
+              <div class="stat-sub" id="frames-left-sub">frames</div>
+            </div>
+          </div>
+
+          <!-- Controls -->
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-secondary w-full" id="pause-btn" onclick="CS.pauseResume()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+              Pause
+            </button>
+            <button class="btn btn-danger btn-sm" onclick="CS.cancelProcessing()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ STATE 5: REVIEW ══════════ -->
+    <div class="state" id="state-review">
+      <div class="review-player" id="review-player">
+        <video id="output-video-player" controls autoplay loop style="width:100%;height:100%;background:#000;display:none;"></video>
+        <div class="viewer-placeholder" id="review-viewer-placeholder" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="12" cy="12" r="10"/><polyline points="10 8 16 12 10 16 10 8"/></svg>
+          <span style="font-size:13px;color:var(--text-tertiary);">Processing complete — output ready</span>
+          <button class="btn btn-primary" onclick="CS.playOutputVideo()" style="margin-top:8px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Play Video Externally
+          </button>
+        </div>
+      </div>
+
+      <div class="review-grid">
+        <!-- Output Details -->
+        <div class="card output-card" id="output-details-card">
+          <div class="config-section-label">Output Details</div>
+          <div id="output-rows">
+            <!-- populated by JS -->
+          </div>
+          <div class="output-actions" id="output-actions">
+            <button class="btn btn-primary" onclick="CS.openOutputInExplorer()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              Open Output Folder
+            </button>
+            <button class="btn btn-secondary" onclick="CS.startNew()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Process Another Video
+            </button>
+            <button class="btn btn-ghost" onclick="CS.goToConfig()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+              Re-process with Different Settings
+            </button>
+          </div>
+        </div>
+
+        <!-- Colorization Report -->
+        <div class="card report-card" id="report-card">
+          <div class="config-section-label">Colorization Report</div>
+          <div class="report-stats" id="report-stats" style="margin-bottom: 16px;">
+            <div class="report-stat"><div class="report-stat-val" id="rpt-frames">—</div><div class="report-stat-label">Frames</div></div>
+            <div class="report-stat"><div class="report-stat-val" id="rpt-r">—</div><div class="report-stat-label">Mean Red</div></div>
+            <div class="report-stat"><div class="report-stat-val" id="rpt-g">—</div><div class="report-stat-label">Mean Green</div></div>
+          </div>
+          <div id="report-png-wrap" style="margin-top:12px;display:none;">
+            <img id="report-png" src="" style="width:100%;border-radius:var(--radius-sm);" alt="Report" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     APPLICATION JAVASCRIPT
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+// ─── State machine ───────────────────────────────────────────────────────────
+const STATES = ['welcome','config','preview','processing','review'];
+let _currentState = null;
+let _pyapi = null;
+let _currentJob = {};
+let _selectedPreset = null;
+let _selectedModel = null;
+let _smoothingOn = true;
+let _isPaused = false;
+let _processingStart = 0;
+let _totalFrames = 0;
+let _outputPath = null;
+let _fpsHistory = [];
+let _metricsInterval = null;
+let _elapsedInterval = null;
+let _presets = [];
+let _models = [];
+let _hwSummary = {};
+
+// ─── pywebview API bridge ────────────────────────────────────────────────────
+async function api(method, ...args) {
+  if (!_pyapi) {
+    await new Promise(r => {
+      const check = () => (window.pywebview?.api ? r() : setTimeout(check, 50));
+      check();
+    });
+    _pyapi = window.pywebview.api;
+  }
+  return _pyapi[method](...args);
+}
+
+// ─── Global chroma event handler (called from Python) ────────────────────────
+window.__chromaEvent = function(payload) {
+  const { event } = payload;
+  switch(event) {
+    case 'hardware_ready':   CS._onHardwareReady(payload.data); break;
+    case 'stage_start':      CS._onStageStart(payload); break;
+    case 'stage_complete':   CS._onStageComplete(payload); break;
+    case 'frame_processed':  CS._onFrameProcessed(payload); break;
+    case 'pipeline_complete':CS._onPipelineComplete(payload); break;
+    case 'pipeline_cancelled':CS._onPipelineCancelled(payload); break;
+    case 'error':            CS._onError(payload); break;
+  }
+};
+
+// ─── Main Application Controller ────────────────────────────────────────────
+const CS = {
+
+  // ── Init ─────────────────────────────────────────────────────────────────
+  async init() {
+    this._setupDragDrop();
+    this._setupKeyboard();
+    await this.goToState('welcome');
+    await this._loadWelcomeData();
+  },
+
+  playOutputVideo() {
+    if (_outputPath) api('play_output_video', _outputPath);
+  },
+
+  async goToState(name) {
+    if (_currentState) {
+      const prev = document.getElementById(`state-${_currentState}`);
+      prev.classList.remove('visible');
+      await sleep(80);
+      prev.classList.remove('active');
+    }
+    _currentState = name;
+    this._updateHeader(name);
+    const el = document.getElementById(`state-${name}`);
+    el.classList.add('active');
+    await sleep(10);
+    el.classList.add('visible');
+    this._onEnterState(name);
+  },
+
+  _onEnterState(name) {
+    if (name === 'welcome') this._startMetricsPollingLight();
+    else if (name === 'processing') this._startMetricsPolling();
+    else this._stopMetricsPolling();
+  },
+
+  _updateHeader(state) {
+    const crumb = document.getElementById('breadcrumb');
+    const actions = document.getElementById('header-actions');
+    const job = _currentJob;
+    const filename = job.video_name || '';
+
+    const crumbMap = {
+      welcome: `<span class="breadcrumb-current">Welcome</span>`,
+      config: `<span class="text-secondary">Import</span><span class="breadcrumb-sep">›</span><span class="breadcrumb-current">${filename}</span>`,
+      preview: `<span class="text-secondary">${filename}</span><span class="breadcrumb-sep">›</span><span class="breadcrumb-current">Preview</span>`,
+      processing: `<span class="text-secondary">${filename}</span><span class="breadcrumb-sep">›</span><span class="breadcrumb-current">Processing</span>`,
+      review: `<span class="text-secondary">${filename}</span><span class="breadcrumb-sep">›</span><span class="breadcrumb-current">Review</span>`,
+    };
+    crumb.innerHTML = crumbMap[state] || '';
+
+    const actionsMap = {
+      welcome: `<div id="hw-chip">${this._hwChipHTML()}</div>`,
+      config: `<button class="btn btn-ghost btn-sm" onclick="CS.goToState('welcome')">← Back</button><button class="btn btn-secondary btn-sm" onclick="CS.goToPreview()">Preview</button><button class="btn btn-primary" onclick="CS.startProcessing()"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Process</button>`,
+      preview: `<button class="btn btn-ghost btn-sm" onclick="CS.goToConfig()">← Configure</button><button class="btn btn-primary btn-sm" onclick="CS.startProcessing()">Process</button>`,
+      processing: `<button class="btn btn-secondary btn-sm" id="hdr-pause" onclick="CS.pauseResume()">Pause</button><button class="btn btn-danger btn-sm" onclick="CS.cancelProcessing()">Cancel</button>`,
+      review: `<button class="btn btn-ghost btn-sm" onclick="CS.startNew()">New Project</button><button class="btn btn-primary btn-sm" onclick="CS.openOutputInExplorer()">Open Folder</button>`,
+    };
+    actions.innerHTML = actionsMap[state] || '';
+  },
+
+  _hwChipHTML() {
+    if (!_hwSummary.cpu_name) return '<span>Detecting…</span>';
+    const parts = [];
+    const cpuShort = _hwSummary.cpu_name.replace(/\(R\)|\(TM\)/g,'').replace('Intel Core ','').replace('AMD Ryzen ','').trim().split(' ').slice(0,2).join(' ');
+    parts.push(`<span style="color:var(--text-primary);font-weight:500;">${cpuShort}</span>`);
+    parts.push(`<span style="width:1px;height:14px;background:var(--border);display:inline-block;"></span>`);
+    if (_hwSummary.has_cuda) {
+      parts.push(`<span class="hw-badge hw-badge-cuda">CUDA</span>`);
+      if (_hwSummary.gpu_name) parts.push(`<span style="color:var(--text-secondary);">${_hwSummary.gpu_name.split(' ').slice(-2).join(' ')}</span>`);
+    } else {
+      parts.push(`<span class="hw-badge hw-badge-nocuda">CPU Only</span>`);
+    }
+    if (_hwSummary.has_ipex) parts.push(`<span class="hw-badge hw-badge-ipex">IPEX</span>`);
+    if (_hwSummary.ram_gb) parts.push(`<span style="color:var(--text-tertiary);">${_hwSummary.ram_gb}GB RAM</span>`);
+    return parts.join('');
+  },
+
+  // ── Welcome ───────────────────────────────────────────────────────────────
+  async _loadWelcomeData() {
+    try {
+      const hw = await api('get_hardware_summary');
+      _hwSummary = hw;
+      this._onHardwareReady(hw);
+    } catch(e) {}
+    try {
+      const history = await api('get_history');
+      this._renderRecent(history);
+    } catch(e) {
+      this._renderRecent([]);
+    }
+  },
+
+  _onHardwareReady(hw) {
+    _hwSummary = hw || {};
+    const chip = document.getElementById('hw-chip');
+    if (chip) chip.innerHTML = this._hwChipHTML();
+    const bar = document.getElementById('hw-bar');
+    if (!bar) return;
+    const items = [];
+    if (hw.cpu_name) items.push(`<div class="hw-item"><span class="hw-label">CPU</span><span class="hw-value">${hw.cpu_name.replace(/\(R\)|\(TM\)/g,'').trim()}</span></div>`);
+    items.push(`<div class="hw-sep"></div>`);
+    if (hw.has_cuda) {
+      items.push(`<div class="hw-item"><span class="hw-badge hw-badge-cuda">CUDA ✓</span></div>`);
+      if (hw.gpu_name) items.push(`<div class="hw-item"><span class="hw-label">GPU</span><span class="hw-value">${hw.gpu_name}</span></div>`);
+      if (hw.vram_gb) items.push(`<div class="hw-item"><span class="hw-label">VRAM</span><span class="hw-value">${hw.vram_gb} GB</span></div>`);
+    } else {
+      items.push(`<div class="hw-item"><span class="hw-badge hw-badge-nocuda">No GPU</span></div>`);
+    }
+    if (hw.has_ipex) items.push(`<div class="hw-item"><span class="hw-badge hw-badge-ipex">Intel IPEX</span></div>`);
+    items.push(`<div class="hw-sep"></div>`);
+    if (hw.ram_gb) items.push(`<div class="hw-item"><span class="hw-label">RAM</span><span class="hw-value">${hw.ram_gb} GB</span></div>`);
+    items.push(`<div class="hw-item"><span class="hw-label">Python</span><span class="hw-value">${hw.python_version || '—'}</span></div>`);
+    bar.innerHTML = items.join('');
+  },
+
+  _renderRecent(history) {
+    const grid = document.getElementById('recent-grid');
+    const empty = document.getElementById('recent-empty');
+    if (!history || history.length === 0) {
+      grid.style.display = 'none';
+      empty.style.display = 'flex';
+      return;
+    }
+    grid.style.display = 'grid';
+    empty.style.display = 'none';
+    grid.innerHTML = history.slice(0, 6).map((item, i) => {
+      const name = item.source_path ? item.source_path.split(/[\\/]/).pop() : 'Unknown';
+      const status = item.status || 'completed';
+      const timeAgo = this._timeAgo(item.created);
+      return `
+        <div class="recent-card" onclick="CS.openRecent('${(item.output_path||'').replace(/\\/g,'\\\\')}')" style="animation-delay:${i*40}ms">
+          <div class="recent-thumb">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/></svg>
+            <div class="recent-thumb-overlay"></div>
+            <div class="recent-thumb-play">▶</div>
+          </div>
+          <div class="recent-info">
+            <div class="recent-name" title="${name}">${name}</div>
+            <div class="recent-meta">
+              <span class="badge badge-${status}" style="font-size:10px;height:18px;"><span class="badge-dot"></span>${status}</span>
+              <span>${timeAgo}</span>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+  },
+
+  _timeAgo(iso) {
+    if (!iso) return '';
+    const d = new Date(iso), now = new Date();
+    const diff = (now - d) / 1000;
+    if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+    return `${Math.floor(diff/86400)}d ago`;
+  },
+
+  openRecent(path) {
+    if (path) api('open_in_explorer', path).catch(()=>{});
+  },
+
+  async clearHistory() {
+    await api('clear_history');
+    this._renderRecent([]);
+    toast('History cleared', '', 'info');
+  },
+
+  // ── File I/O ──────────────────────────────────────────────────────────────
+  async browseFile() {
+    try {
+      const path = await api('open_file_dialog');
+      if (path) await this.loadVideo(path);
+    } catch(e) { toast('Failed to open file', String(e), 'error'); }
+  },
+
+  async browseFolder() {
+    try {
+      const folder = await api('open_folder_dialog');
+      if (folder) toast('Folder import', 'Folder queuing coming soon — drag individual files for now.', 'info');
+    } catch(e) {}
+  },
+
+  async loadVideo(path) {
+    _currentJob.video_path = path;
+    _currentJob.video_name = path.split(/[\\/]/).pop();
+    await this.goToState('config');
+    await this._loadConfigData(path);
+  },
+
+  // ── Configuration ─────────────────────────────────────────────────────────
+  async _loadConfigData(videoPath) {
+    // Load first frame preview
+    try {
+      const frame = await api('get_first_frame', videoPath);
+      const pf = document.getElementById('preview-frame');
+      if (frame) {
+        pf.innerHTML = `<img src="${frame}" alt="First frame" style="width:100%;height:100%;object-fit:contain;border-radius:var(--radius-lg);" />`;
+      }
+    } catch(e) {}
+
+    // Video info
+    try {
+      const info = await api('get_video_info', videoPath);
+      document.getElementById('vi-name').textContent = info.name || '—';
+      document.getElementById('vi-dur').textContent = info.duration_str || '—';
+      document.getElementById('vi-fps').textContent = info.fps ? `${info.fps} fps` : '—';
+      document.getElementById('vi-res').textContent = (info.width && info.height) ? `${info.width}×${info.height}` : '—';
+      _currentJob.fps = info.fps || 24;
+    } catch(e) {}
+
+    // Presets
+    try {
+      _presets = await api('get_presets');
+      this._renderPresets();
+    } catch(e) { _presets = []; }
+
+    // Models
+    try {
+      _models = await api('get_models');
+      this._renderModels();
+    } catch(e) { _models = []; }
+  },
+
+  _renderPresets() {
+    const grid = document.getElementById('preset-grid');
+    const builtins = _presets.filter(p => p.builtin).slice(0, 4);
+    grid.innerHTML = builtins.map(p => {
+      const isSelected = _selectedPreset?.id === p.id || (!_selectedPreset && p.id === 'balanced');
+      return `
+        <div class="preset-card ${isSelected ? 'selected' : ''}" data-preset-id="${p.id}" onclick="CS.selectPreset('${p.id}')">
+          <div class="preset-check">✓</div>
+          <div class="preset-name">${p.name}</div>
+          <div class="preset-desc">${p.description}</div>
+          <div class="preset-stars">${Array(5).fill(0).map((_,i) => `<div class="star ${i < (p.quality_stars||3) ? 'filled' : 'empty'}"></div>`).join('')}</div>
+        </div>`;
+    }).join('');
+    if (!_selectedPreset) this.selectPreset('balanced', false);
+  },
+
+  selectPreset(id, updateUI = true) {
+    _selectedPreset = _presets.find(p => p.id === id) || _presets[0];
+    if (!_selectedPreset) return;
+
+    // Apply preset values to controls
+    const sw = document.getElementById('smooth-window');
+    const sa = document.getElementById('smooth-anchor');
+    const sc = document.getElementById('output-codec');
+    if (sw) { sw.value = _selectedPreset.smoothing_window || 9; document.getElementById('smooth-window-val').textContent = sw.value; }
+    if (sa) { sa.value = _selectedPreset.smoothing_anchor || 0.65; document.getElementById('smooth-anchor-val').textContent = parseFloat(sa.value).toFixed(2); }
+    if (sc) sc.value = _selectedPreset.codec || 'h264';
+
+    const smoothOn = _selectedPreset.smoothing_enabled !== false;
+    _smoothingOn = smoothOn;
+    const toggle = document.getElementById('smooth-toggle');
+    if (toggle) toggle.className = `toggle ${smoothOn ? 'on' : ''}`;
+    const ctrl = document.getElementById('smooth-controls');
+    if (ctrl) ctrl.style.opacity = smoothOn ? '1' : '0.4';
+
+    if (updateUI) {
+      document.querySelectorAll('.preset-card').forEach(el => {
+        el.classList.toggle('selected', el.dataset.presetId === id);
+      });
+      // Update model selection based on preset
+      if (_selectedPreset.model) this.selectModel(_selectedPreset.model, true);
+    }
+  },
+
+  _renderModels() {
+    const list = document.getElementById('model-list');
+    list.innerHTML = _models.map(m => {
+      const isDisabled = m.status === 'needs_checkpoint';
+      const isSelected = _selectedModel?.id === m.id || (!_selectedModel && m.id === 'colorize_zhang_siggraph17');
+      const badge = m.status === 'ready'
+        ? `<span class="badge badge-ready" style="font-size:10px;height:18px;">Ready</span>`
+        : `<span class="badge badge-needs" style="font-size:10px;height:18px;">Needs Checkpoint</span>`;
+      const gpuTag = m.gpu_required ? `<span style="font-size:10px;color:var(--warning);">CUDA required</span>` : '';
+      return `
+        <div class="model-card ${isSelected ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}" 
+             data-model-id="${m.id}" onclick="CS.selectModel('${m.id}')">
+          <div class="model-icon">🧠</div>
+          <div class="model-info">
+            <div class="model-name">${m.name}</div>
+            <div class="model-arch">${m.architecture}</div>
+          </div>
+          <div class="model-right">${badge}${gpuTag}</div>
+        </div>`;
+    }).join('');
+    if (!_selectedModel) this.selectModel('colorize_zhang_siggraph17', false);
+  },
+
+  selectModel(id, updateUI = true) {
+    _selectedModel = _models.find(m => m.id === id);
+    if (updateUI) {
+      document.querySelectorAll('.model-card').forEach(el => {
+        el.classList.toggle('selected', el.dataset.modelId === id);
+      });
+    }
+  },
+
+  toggleSmoothing() {
+    _smoothingOn = !_smoothingOn;
+    const toggle = document.getElementById('smooth-toggle');
+    if (toggle) toggle.className = `toggle ${_smoothingOn ? 'on' : ''}`;
+    const ctrl = document.getElementById('smooth-controls');
+    if (ctrl) ctrl.style.opacity = _smoothingOn ? '1' : '0.4';
+  },
+
+  goToConfig() { this.goToState('config'); },
+
+  goToPreview() {
+    if (!_currentJob.video_path) return;
+    const vid = document.getElementById('input-video-player');
+    const ph = document.getElementById('preview-viewer-placeholder');
+    if (vid && ph) {
+      vid.src = `file:///${_currentJob.video_path.replace(/\\/g,'/')}`;
+      vid.style.display = 'block';
+      ph.style.display = 'none';
+    }
+    this.goToState('preview');
+  },
+
+  // ── Processing ────────────────────────────────────────────────────────────
+  async startProcessing() {
+    if (!_currentJob.video_path) { toast('No video selected', 'Please import a video first.', 'warning'); return; }
+
+    const sw = document.getElementById('smooth-window');
+    const sa = document.getElementById('smooth-anchor');
+    const sc = document.getElementById('output-codec');
+
+    const job = {
+      ..._currentJob,
+      preset_id: _selectedPreset?.id || 'balanced',
+      model_id: _selectedModel?.id || 'colorize_zhang_siggraph17',
+      model_backend: _selectedModel?.backend || 'colorize_zhang',
+      smoothing_enabled: _smoothingOn,
+      smoothing_window: sw ? parseInt(sw.value) : 9,
+      smoothing_anchor: sa ? parseFloat(sa.value) : 0.65,
+      codec: sc ? sc.value : 'h264',
+    };
+    _currentJob = job;
+    _fpsHistory = [];
+    _totalFrames = 0;
+    _isPaused = false;
+    _processingStart = Date.now();
+
+    await this.goToState('processing');
+    this._resetStages();
+
+    try {
+      const result = await api('start_processing', job);
+      if (!result.ok) { toast('Failed to start', result.error || 'Unknown error', 'error'); return; }
+      toast('Processing started', _currentJob.video_name, 'info');
+      this._startElapsedCounter();
+    } catch(e) {
+      toast('Failed to start', String(e), 'error');
+    }
+  },
+
+  _resetStages() {
+    ['extraction','colorization','smoothing','encoding','reporting'].forEach(s => {
+      const el = document.getElementById(`stage-${s}`);
+      if (el) el.className = 'stage-item pending';
+      const detail = document.getElementById(`stage-${s}-detail`);
+      if (detail) detail.textContent = 'Waiting…';
+    });
+    const fill = document.getElementById('main-progress-fill');
+    if (fill) fill.style.width = '0%';
+    const lp = document.getElementById('live-preview-box');
+    if (lp) lp.innerHTML = `
+      <div class="live-preview-placeholder">
+        <div class="spinner"></div>
+        <span style="font-size:13px;color:var(--text-tertiary);margin-top:12px;">Initializing pipeline…</span>
+      </div>`;
+  },
+
+  _onStageStart(payload) {
+    const { stage, label, total } = payload;
+    if (total) _totalFrames = total;
+    const el = document.getElementById(`stage-${stage}`);
+    if (el) {
+      el.className = 'stage-item active';
+      const detail = el.querySelector('[id^="stage-"][id$="-detail"]');
+      if (detail) detail.textContent = label || 'Running…';
+    }
+    document.getElementById('proc-stage-label').textContent = label || stage;
+    document.getElementById('stage-val').textContent = stage;
+
+    if (stage === 'colorization' && total) {
+      document.getElementById('frames-left').textContent = total;
+      const prog = document.getElementById('stage-colorization-prog');
+      if (prog) prog.style.display = 'block';
+    }
+  },
+
+  _onStageComplete(payload) {
+    const { stage, output_path } = payload;
+    const el = document.getElementById(`stage-${stage}`);
+    if (el) {
+      el.className = 'stage-item complete';
+      const detail = el.querySelector('[id^="stage-"][id$="-detail"]');
+      if (detail) detail.textContent = 'Complete ✓';
+    }
+    if (output_path) _outputPath = output_path;
+  },
+
+  _onFrameProcessed(payload) {
+    const { frame_index, total_frames, fps, avg_fps, eta_seconds, elapsed_seconds, preview_path } = payload;
+    if (total_frames) _totalFrames = total_frames;
+    const done = frame_index || 0;
+    const total = _totalFrames || 1;
+    const pct = Math.min((done / total) * 100, 100);
+
+    // Progress bar
+    const fill = document.getElementById('main-progress-fill');
+    if (fill) fill.style.width = `${pct}%`;
+    const cfill = document.getElementById('color-prog-fill');
+    if (cfill) cfill.style.width = `${pct}%`;
+
+    // Counters
+    document.getElementById('frames-done').textContent = done.toLocaleString();
+    document.getElementById('frames-left').textContent = (total - done).toLocaleString();
+    document.getElementById('proc-frame-counter').textContent = `${done.toLocaleString()} / ${total.toLocaleString()} frames`;
+
+    // FPS
+    if (fps) {
+      const fpsNum = parseFloat(fps).toFixed(1);
+      document.getElementById('fps-val').textContent = `${fpsNum} f/s`;
+      document.getElementById('sparkline-fps').textContent = fpsNum;
+      _fpsHistory.push(parseFloat(fps));
+      if (_fpsHistory.length > 60) _fpsHistory.shift();
+      this._drawSparkline();
+    }
+
+    // ETA
+    if (eta_seconds) document.getElementById('eta-val').textContent = formatSecs(eta_seconds);
+
+    // Preview update
+    if (preview_path) {
+      const box = document.getElementById('live-preview-box');
+      box.innerHTML = `<img src="${preview_path}" style="width:100%;height:100%;object-fit:contain;border-radius:var(--radius-lg);" />
+        <div class="live-badge" style="display:flex;"><div class="live-dot"></div>LIVE — ${done.toLocaleString()} frames</div>`;
+    }
+  },
+
+  _onPipelineComplete(payload) {
+    const { output_path, preview_video } = payload;
+    _outputPath = output_path;
+    this._stopElapsedCounter();
+    this._stopMetricsPolling();
+    toast('Processing complete!', output_path ? output_path.split(/[\\/]/).pop() : '', 'success');
+    this.goToState('review');
+    this._loadReviewData(output_path, preview_video);
+  },
+
+  _onPipelineCancelled(_payload) {
+    this._stopElapsedCounter();
+    this._stopMetricsPolling();
+    toast('Processing cancelled', 'Pipeline stopped cleanly.', 'warning');
+    this.goToState('config');
+  },
+
+  _onError(payload) {
+    toast('Processing error', payload.message || 'Unknown error', 'error');
+    this._stopElapsedCounter();
+  },
+
+  async _loadReviewData(outputPath, previewVideo) {
+    const rows = document.getElementById('output-rows');
+    const name = outputPath ? outputPath.split(/[\\/]/).pop() : '—';
+    rows.innerHTML = [
+      ['File', name],
+      ['Model', _selectedModel?.name || '—'],
+      ['Preset', _selectedPreset?.name || '—'],
+      ['Smoothing', _smoothingOn ? `Window ${document.getElementById('smooth-window')?.value || 9}` : 'Off'],
+    ].map(([k,v]) => `<div class="output-row"><span class="output-key">${k}</span><span class="output-val">${v}</span></div>`).join('');
+
+    // Report
+    try {
+      const report = await api('get_report');
+      if (report) {
+        document.getElementById('rpt-frames').textContent = report.num_frames || '—';
+        document.getElementById('rpt-r').textContent = Math.round(report.mean_rgb?.r || 0);
+        document.getElementById('rpt-g').textContent = Math.round(report.mean_rgb?.g || 0);
+        if (report.report_png_b64) {
+          const img = document.getElementById('report-png');
+          img.src = report.report_png_b64;
+          document.getElementById('report-png-wrap').style.display = 'block';
+        }
+      }
+    } catch(e) {}
+
+    // Video Player
+    const vid = document.getElementById('output-video-player');
+    const ph = document.getElementById('review-viewer-placeholder');
+    if (vid && ph && previewVideo) {
+      vid.src = previewVideo + "?t=" + Date.now();
+      vid.style.display = 'block';
+      ph.style.display = 'none';
+    }
+  },
+
+  async pauseResume() {
+    _isPaused = !_isPaused;
+    if (_isPaused) {
+      await api('pause_processing');
+      toast('Processing paused', 'Click Resume to continue', 'info');
+    } else {
+      await api('resume_processing');
+      toast('Processing resumed', '', 'info');
+    }
+    const btn = document.getElementById('pause-btn');
+    const hdrBtn = document.getElementById('hdr-pause');
+    const label = _isPaused ? 'Resume' : 'Pause';
+    if (btn) btn.innerHTML = `${_isPaused ? '▶' : '⏸'} ${label}`;
+    if (hdrBtn) hdrBtn.textContent = label;
+  },
+
+  async cancelProcessing() {
+    if (!confirm('Cancel processing? Partial output may be lost.')) return;
+    await api('cancel_processing');
+    this._stopElapsedCounter();
+    toast('Processing cancelled', '', 'warning');
+    await this.goToState('config');
+  },
+
+  openOutputInExplorer() {
+    if (_outputPath) api('open_in_explorer', _outputPath).catch(()=>{});
+  },
+
+  viewFullReport() {
+    const rootPath = _currentJob.video_path?.split(/[\\/]/).slice(0,-1).join('\\') || '';
+    toast('Report', 'Full report saved to reports/report.png', 'info');
+  },
+
+  startNew() {
+    _currentJob = {};
+    _selectedPreset = null;
+    _selectedModel = null;
+    _outputPath = null;
+    this.goToState('welcome');
+    this._loadWelcomeData();
+  },
+
+  // ── Preview state ─────────────────────────────────────────────────────────
+  togglePlay() {
+    const v = document.querySelector('#preview-viewer video');
+    if (!v) return;
+    v.paused ? v.play() : v.pause();
+    const btn = document.getElementById('play-pause-btn');
+    btn.innerHTML = v.paused
+      ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>'
+      : '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
+  },
+  seek(secs) {
+    const v = document.querySelector('#preview-viewer video');
+    if (v) v.currentTime = Math.max(0, v.currentTime + secs);
+  },
+  setCmpMode(mode) {
+    document.querySelectorAll('.cmp-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+  },
+
+  // ── System metrics ────────────────────────────────────────────────────────
+  _startMetricsPolling() {
+    this._stopMetricsPolling();
+    this._pollMetrics();
+    _metricsInterval = setInterval(() => this._pollMetrics(), 2000);
+  },
+  _startMetricsPollingLight() {
+    this._stopMetricsPolling();
+    _metricsInterval = setInterval(() => {}, 60000); // no-op light poll
+  },
+  _stopMetricsPolling() {
+    if (_metricsInterval) { clearInterval(_metricsInterval); _metricsInterval = null; }
+  },
+
+  async _pollMetrics() {
+    try {
+      const m = await api('get_system_metrics');
+      const cpu = Math.round(m.cpu_percent || 0);
+      const ram = Math.round(m.ram_percent || 0);
+      this._setMeter('cpu', cpu, `${cpu}%`);
+      this._setMeter('ram', ram, `${ram}%`);
+      const ramLabel = document.getElementById('ram-label');
+      if (ramLabel) ramLabel.textContent = `${m.ram_used_gb || 0} / ${m.ram_total_gb || 0} GB`;
+      if (m.has_cuda && m.vram_total_gb) {
+        const vramPct = Math.round((m.vram_used_gb / m.vram_total_gb) * 100);
+        this._setMeter('gpu', vramPct, `${vramPct}%`);
+        const vl = document.getElementById('vram-label');
+        if (vl) vl.textContent = `VRAM: ${m.vram_used_gb} / ${m.vram_total_gb} GB`;
+      }
+    } catch(e) {}
+  },
+
+  _setMeter(name, pct, label) {
+    const bar = document.getElementById(`${name}-bar`);
+    const pctEl = document.getElementById(`${name}-pct`);
+    if (bar) bar.style.width = `${Math.min(pct,100)}%`;
+    if (pctEl) pctEl.textContent = label;
+  },
+
+  _startElapsedCounter() {
+    this._stopElapsedCounter();
+    _processingStart = Date.now();
+    _elapsedInterval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - _processingStart) / 1000);
+      const el = document.getElementById('elapsed-val');
+      if (el) el.textContent = formatSecs(elapsed);
+    }, 1000);
+  },
+  _stopElapsedCounter() {
+    if (_elapsedInterval) { clearInterval(_elapsedInterval); _elapsedInterval = null; }
+  },
+
+  _drawSparkline() {
+    const canvas = document.getElementById('fps-canvas');
+    if (!canvas || !_fpsHistory.length) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+    const max = Math.max(..._fpsHistory, 1) * 1.2;
+    const pts = _fpsHistory.map((v, i) => [
+      (i / Math.max(_fpsHistory.length - 1, 1)) * W,
+      H - (v / max) * H * 0.9
+    ]);
+    // Fill
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], H);
+    pts.forEach(([x, y]) => ctx.lineTo(x, y));
+    ctx.lineTo(pts[pts.length-1][0], H);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, 'rgba(0,98,255,0.35)');
+    grad.addColorStop(1, 'rgba(0,98,255,0.02)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+    // Line
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    pts.forEach(([x,y]) => ctx.lineTo(x, y));
+    ctx.strokeStyle = '#0062FF';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  },
+
+  // ── Drag & drop ───────────────────────────────────────────────────────────
+  _setupDragDrop() {
+    const body = document.body;
+    body.addEventListener('dragover', e => e.preventDefault());
+    body.addEventListener('drop', e => e.preventDefault());
+
+    const zone = document.getElementById('drop-zone');
+    if (zone) {
+      zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+      zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+      zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('drag-over'); });
+    }
+  },
+
+  // ── Keyboard ──────────────────────────────────────────────────────────────
+  _setupKeyboard() {
+    document.addEventListener('keydown', e => {
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === 'o') { e.preventDefault(); this.browseFile(); }
+        if (e.key === 'Enter' && _currentState === 'config') { e.preventDefault(); this.startProcessing(); }
+      }
+      if (_currentState === 'preview') {
+        if (e.key === ' ') { e.preventDefault(); this.togglePlay(); }
+        if (e.key === 'ArrowLeft') this.seek(-5);
+        if (e.key === 'ArrowRight') this.seek(5);
+      }
+      if (e.key === 'Escape' && _currentState === 'processing') this.cancelProcessing();
+    });
+  },
+};
+
+// ─── Utilities ───────────────────────────────────────────────────────────────
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function formatSecs(s) {
+  s = Math.round(s);
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  if (m >= 60) return `${Math.floor(m/60)}h ${m%60}m`;
+  return `${m}:${String(sec).padStart(2,'0')}`;
+}
+
+let _toastId = 0;
+function toast(title, msg, type = 'info') {
+  const icons = {
+    success: `<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>`,
+    error: `<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
+    info: `<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+    warning: `<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+  };
+  const id = ++_toastId;
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.id = `toast-${id}`;
+  el.innerHTML = `${icons[type] || icons.info}<div class="toast-content"><div class="toast-title">${title}</div>${msg ? `<div class="toast-msg">${msg}</div>` : ''}</div>`;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => {
+    el.classList.add('hiding');
+    setTimeout(() => el.remove(), 120);
+  }, 4000);
+}
+
+// ─── Boot ────────────────────────────────────────────────────────────────────
+window.addEventListener('pywebviewready', () => CS.init());
+// Fallback for direct HTML open (dev mode)
+if (typeof window.pywebview === 'undefined') {
+  setTimeout(() => {
+    CS.init();
+    // Mock hardware data for dev preview
+    CS._onHardwareReady({
+      cpu_name: 'Intel Core i9-13900K', cpu_cores: 24,
+      has_cuda: true, gpu_name: 'NVIDIA GeForce RTX 4090',
+      vram_gb: 24, ram_gb: 64,
+      has_ipex: false, python_version: '3.11.9'
+    });
+  }, 100);
+}
+</script>
+</body>
+</html>

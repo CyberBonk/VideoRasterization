@@ -28,8 +28,10 @@ def rebuild_video_output(
             source_audio=str(source_video),
         )
         status(f"[ok] video rebuild saved: {default_output}")
+        return default_output
     except Exception as e:
         status(f"[warn] video rebuild failed: {e}")
+        raise e
 
 
 __all__ = ["rebuild_video_output"]
