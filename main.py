@@ -18,7 +18,7 @@ from video_pipeline.frame_extraction import extract_frames
 from video_pipeline.input_handling import select_input_video
 from video_pipeline.colorization import run_colorization
 from video_pipeline.smoothing import apply_temporal_smoothing_step
-from video_pipeline.window_prompt import ask_temporal_window
+from video_pipeline.window_prompt import ask_temporal_smoothing_options
 from video_pipeline.reporting import generate_report
 from video_pipeline.reconstruction import rebuild_video_output
 from tools import model_selector, inference_options
@@ -59,9 +59,9 @@ def main():
         status(f"[info] GPU available: True ({torch.cuda.get_device_name(0)})")
     else:
         status("[warn] GPU available: False; colorization will run on CPU.")
-    window_size = ask_temporal_window()
+    smoothing_options = ask_temporal_smoothing_options()
     color_dir = run_colorization(frames_dir, model_name, use_gpu, **model_options)
-    smooth_dir = apply_temporal_smoothing_step(color_dir, window_size)
+    smooth_dir = apply_temporal_smoothing_step(frames_dir, color_dir, smoothing_options)
     generate_report(frames_gray_dir=frames_dir, frames_color_dir=color_dir)
     rebuild_video_output(color_dir=color_dir, smooth_dir=smooth_dir, source_video=video_path, fps=24)
 

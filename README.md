@@ -35,6 +35,11 @@ VideoRasterization is a Python CLI pipeline for turning grayscale videos into co
   - skips the AI model only when frames are a 100% pixel match
   - restores duplicate output frames after colorization
 - Optional temporal smoothing
+- Motion-compensated chroma stabilization mode:
+  - computes optical flow from original grayscale frames
+  - warps previous chroma into the current frame
+  - blends only color channels
+  - preserves current-frame luminance to avoid blur
 - Preview report generation
 - Final video rebuild with original audio copied back when available
 - Colored console status:
@@ -110,7 +115,7 @@ The CLI asks for:
 2. Extraction mode
 3. AI model backend
 4. ChromaNet style/color options, if ChromaNet is selected
-5. Optional temporal smoothing window
+5. Optional temporal smoothing mode
 
 Example input video:
 
@@ -125,7 +130,19 @@ Extraction mode: 2
 AI backend: 1) colorize_chromanet_v3
 Style: 0 realistic, or 1 cartoonish, or 2 brush art / grainy
 Color strength: 2 vivid or 3 max / experimental for weak color checkpoints
-Temporal smoothing: blank for off, 9 for smoother videos
+Temporal smoothing:
+- `1` flow_chroma for motion-aware color stabilization
+- `2` legacy_average only if you want the old sliding-window blend
+
+Terminal controls:
+
+- `flow_chroma` asks for:
+  - `flow memory` with recommended default `0.75`
+  - `motion confidence strength` with recommended default `1.00`
+- `legacy_average` asks for:
+  - `window size` with recommended default `9`
+  - larger window = more temporal averaging and higher smear risk
+  - smaller window = less smear but weaker color consistency
 ```
 
 Experimental Zhang choice:
@@ -147,6 +164,13 @@ If temporal smoothing is enabled:
 <input_name>_smoothed.mp4
 ```
 
+Practical read:
+
+- `flow_chroma` is the recommended mode.
+- `legacy_average` is faster, but it can smear moving edges because it blends whole frames across time.
+- On simpler scenes, still-frame comparisons may look very similar even when video playback shows the real temporal difference.
+- Evaluate smoothing by scrubbing video, not by looking at one exported frame only.
+
 ## Pipeline Flow
 
 ```text
@@ -157,7 +181,7 @@ input video
        - unique frames passed to selected model
   -> AI colorization
   -> duplicate output frames restored
-  -> optional temporal smoothing
+  -> optional temporal smoothing / flow-chroma stabilization
   -> preview report
   -> FFmpeg rebuild with source audio copied back
   -> final MP4
