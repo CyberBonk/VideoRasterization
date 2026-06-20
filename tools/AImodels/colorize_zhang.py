@@ -27,12 +27,15 @@ except Exception:
 # ---------------- helpers ----------------
 def _list_frames(frames_dir: Path) -> List[Path]:
     d = Path(frames_dir)
-    paths = list(chain(
+    paths = {
+        p.resolve(): p
+        for p in chain(
         d.glob("*.png"), d.glob("*.PNG"),
         d.glob("*.jpg"), d.glob("*.JPG"),
         d.glob("*.jpeg"), d.glob("*.JPEG"),
-    ))
-    return sorted(paths, key=lambda p: p.name)
+        )
+    }
+    return sorted(paths.values(), key=lambda p: p.name)
 
 def _auto_batch_size(threads: int) -> int:
     # bigger cap to keep modern CPUs busy
@@ -101,7 +104,10 @@ def colorize_dir(
     threads_info = T_THREADS if torch is not None else (os.cpu_count() or 8)
     if (torch is not None) and (num_threads is not None):
         torch.set_num_threads(num_threads)
-        torch.set_num_interop_threads(num_threads)
+        try:
+            torch.set_num_interop_threads(num_threads)
+        except RuntimeError:
+            pass
         threads_info = num_threads
 
     # list frames

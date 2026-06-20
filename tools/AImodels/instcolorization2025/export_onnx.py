@@ -91,7 +91,7 @@ def main():
     parser = argparse.ArgumentParser(description="Export colorization generator to ONNX")
     parser.add_argument("--style", type=str, default="siggraph17", choices=["siggraph17", "eccv16"], help="Model style to export")
     parser.add_argument("--weights", type=str, default=None, help="Optional path to weights (otherwise auto-download)")
-    parser.add_argument("--output", type=str, default="checkpoints/base/siggraph.onnx", help="Destination ONNX file")
+    parser.add_argument("--output", type=str, default="../../../checkpoints/instcolorization/base/siggraph.onnx", help="Destination ONNX file")
     parser.add_argument("--height", type=int, default=256, help="Dummy height for export")
     parser.add_argument("--width", type=int, default=256, help="Dummy width for export")
     parser.add_argument("--dynamic", action="store_true", help="Enable dynamic spatial dims")

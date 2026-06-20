@@ -29,6 +29,8 @@ from skimage import color as skcolor
 from tqdm import tqdm
 
 ROOT = Path(__file__).resolve().parent
+REPO_ROOT = ROOT.parents[1]
+DEFAULT_CHECKPOINT_DIR = REPO_ROOT / "checkpoints" / "chromanet"
 sys.path.insert(0, str(ROOT))
 
 from inference.colorizer import ChromaColorizer
@@ -176,7 +178,7 @@ def parse_args():
     p.add_argument("--mode",   choices=["image","frames","video"], default="video")
     p.add_argument("--input",  required=True,  help="Input file or folder")
     p.add_argument("--output", default=None,   help="Output file or folder")
-    p.add_argument("--checkpoint", default="./checkpoints/checkpoint_epoch100_final.pth",
+    p.add_argument("--checkpoint", default=str(DEFAULT_CHECKPOINT_DIR / "checkpoint_latest.pth"),
                    help="Path to trained checkpoint")
     p.add_argument("--img-size",        type=int,   default=256, dest="img_size")
     p.add_argument("--temporal-alpha",  type=float, default=0.3, dest="temporal_alpha",
@@ -193,7 +195,7 @@ if __name__ == "__main__":
     # Find checkpoint automatically if not specified
     ckpt = args.checkpoint
     if not Path(ckpt).exists():
-        ckpts = sorted(Path("./checkpoints").glob("*.pth"))
+        ckpts = sorted(DEFAULT_CHECKPOINT_DIR.glob("*.pth"))
         if not ckpts:
             print("ERROR: No checkpoint found. Run train.py first.")
             sys.exit(1)

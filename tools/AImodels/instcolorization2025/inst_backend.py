@@ -22,7 +22,8 @@ from .siggraph_loader import load_siggraph17
 
 DEFAULT_IMAGE_SIZE = 256
 BASE_DIR = Path(__file__).resolve().parent
-TRAINED_FULL_CHECKPOINT = BASE_DIR / "checkpoints" / "coco_full_256_train2017" / "latest_net_G.pth"
+CHECKPOINT_ROOT = BASE_DIR.parents[2] / "checkpoints"
+TRAINED_FULL_CHECKPOINT = CHECKPOINT_ROOT / "instcolorization" / "coco_full_256_train2017" / "latest_net_G.pth"
 INST_STYLE_TRAINED = "inst_trained_full"
 INST_STYLE_SIGGRAPH17 = "inst_siggraph17"
 

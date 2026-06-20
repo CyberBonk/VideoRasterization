@@ -40,9 +40,9 @@ if ($TrainDirOverride) {
     }
 }
 
-$CheckpointRoot = Join-Path $RepoRoot "tools\AImodels\instcolorization2025\checkpoints"
+$CheckpointRoot = Join-Path $RepoRoot "checkpoints\instcolorization"
 $CheckpointDir = Join-Path $CheckpointRoot $ExperimentName
-$SeedCheckpoint = Join-Path $RepoRoot "tools\AImodels\DataSets\siggraph17-df00044c.pth"
+$SeedCheckpoint = Join-Path $RepoRoot "checkpoints\zhang\siggraph17-df00044c.pth"
 $LatestCheckpoint = Join-Path $CheckpointDir "latest_net_G.pth"
 
 if (-not (Test-Path $SeedCheckpoint)) {

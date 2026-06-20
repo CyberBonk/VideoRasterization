@@ -7,9 +7,10 @@ except Exception:
     requests = None
 
 BASE_DIR = Path(__file__).resolve().parent
-DATASETS_DIR = BASE_DIR.parent / "DataSets"
+CENTRAL_CHECKPOINTS = BASE_DIR.parents[2] / "checkpoints"
+ZHANG_DIR = CENTRAL_CHECKPOINTS / "zhang"
 CACHE_DIR = Path.home() / ".cache" / "torch" / "hub" / "checkpoints"
-LOCAL_DIR = BASE_DIR / "checkpoints" / "base"
+LOCAL_DIR = CENTRAL_CHECKPOINTS / "instcolorization" / "base"
 
 SIGGRAPH17_URL = "https://colorizers.s3.us-east-2.amazonaws.com/siggraph17-df00044c.pth"
 ECCV16_URL = "https://colorizers.s3.us-east-2.amazonaws.com/colorization_release_v2-9b330a0b.pth"
@@ -23,9 +24,9 @@ def _find_existing(names):
     for name in names:
         cache_path = CACHE_DIR / name
         local_path = LOCAL_DIR / name
-        dataset_path = DATASETS_DIR / name
-        if dataset_path.is_file():
-            return dataset_path
+        zhang_path = ZHANG_DIR / name
+        if zhang_path.is_file():
+            return zhang_path
         if cache_path.is_file():
             return cache_path
         if local_path.is_file():

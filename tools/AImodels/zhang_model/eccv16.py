@@ -7,7 +7,7 @@ from IPython import embed
 
 from .base_color import *
 
-DATASETS_DIR = Path(__file__).resolve().parent.parent / "DataSets"
+DATASETS_DIR = Path(__file__).resolve().parents[3] / "checkpoints" / "zhang"
 
 class ECCVGenerator(BaseColor):
     def __init__(self, norm_layer=nn.BatchNorm2d):

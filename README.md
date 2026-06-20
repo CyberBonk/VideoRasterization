@@ -153,19 +153,29 @@ input video
 
 Duplicate-frame skipping is exact. If one pixel is different, the frame is treated as new and is sent to the model.
 
-## ChromaNet Checkpoints
+## Model Checkpoints
 
-The project adapter uses:
+All local model weights live under one ignored folder:
 
 ```text
-ChromaNet_v3_complete/chromanet_v3/checkpoints/checkpoint_latest.pth
+checkpoints/
+  chromanet/
+    checkpoint_latest.pth
+  instcolorization/
+    coco_full_256_train2017/
+      latest_net_G.pth
+  zhang/
+    eccv16.pth
+    siggraph17-df00044c.pth
 ```
 
-Checkpoints are ignored by git because they are large. To share a trained model with teammates, send the latest checkpoint file separately or place it in the same checkpoints folder.
+Checkpoints are ignored by git because they are large. To share a trained model with teammates, send the needed `.pth` file separately and place it in the matching subfolder.
 
 Useful checkpoint notes:
 
-- `checkpoint_latest.pth` is what the project uses by default.
+- `checkpoints/chromanet/checkpoint_latest.pth` is what ChromaNet uses by default.
+- `checkpoints/instcolorization/coco_full_256_train2017/latest_net_G.pth` is what InstColorization uses by default.
+- `checkpoints/zhang/*.pth` holds the Zhang/ECCV/SIGGRAPH base weights.
 - `checkpoint_epochXXX.pth` stores a specific epoch.
 - `checkpoint_epochXXX_best.pth` stores best validation checkpoints when generated.
 
@@ -219,7 +229,7 @@ Run for a time limit, finishing the current epoch before stopping:
 The trainer saves checkpoints in:
 
 ```text
-ChromaNet_v3_complete/chromanet_v3/checkpoints/
+checkpoints/chromanet/
 ```
 
 ## Performance Notes
@@ -232,6 +242,164 @@ ChromaNet_v3_complete/chromanet_v3/checkpoints/
   - `vivid`
   - `max / experimental`
   - custom confidence filter near `0.00`
+
+## External Research Findings
+
+This section records findings from checking two external student/project repos during model-quality debugging.
+
+### Why We Looked
+
+Current local model behavior:
+
+- ChromaNet checkpoint trained quickly on COCO-style natural images.
+- Nature scenes can look acceptable.
+- People, buildings, roads, sand, sky/object separation, and high-contrast black-and-white footage can fail.
+- Common failures include beige/sepia cast, weak color, gray faces, wrong semantic colors, and average-looking colors.
+
+Root cause:
+
+- Grayscale-to-color is ambiguous. Many colors can share the same luminance.
+- A small or weak custom checkpoint learns easy natural priors first, such as grass/trees/sky.
+- Pixel regression losses tend to predict average chroma when unsure, which causes desaturated beige/gray output.
+- More epochs help, but do not fully solve missing semantic priors quickly.
+
+### Hanshu110/Image_and_Video-Colorization-using-Deep-Learning
+
+Repo checked:
+
+```text
+https://github.com/Hanshu110/Image_and_Video-Colorization-using-Deep-Learning
+```
+
+What it uses:
+
+- OpenCV DNN.
+- Caffe colorization model:
+  - `models_colorization_deploy_v2.prototxt`
+  - `colorization_release_v2.caffemodel`
+  - `pts_in_hull.npy`
+- LAB pipeline:
+  - keep original `L`
+  - resize to model input
+  - predict `ab`
+  - upscale `ab`
+  - combine full-resolution `L + ab`
+
+Why it may look better than our weak custom checkpoint:
+
+- It uses a large pretrained Zhang/ECCV-style model instead of our partially trained ChromaNet checkpoint.
+- That pretrained model already has broader color priors.
+- It includes simple post-processing controls:
+  - color correction
+  - saturation/intensity adjustment
+  - luminance sharpening/detail enhancement
+
+Important limitation:
+
+- It is not a new training solution.
+- It does not solve true semantic ambiguity perfectly.
+- It can still miscolor unusual scenes.
+
+Practical value for this project:
+
+- High immediate value.
+- Use it as a demo-quality fallback/backend.
+- Borrow its post-processing controls for all backends.
+- Best next implementation candidate: `zhang_caffe_opencv`.
+
+Suggested integration steps:
+
+1. Add a new backend folder/function for OpenCV Caffe Zhang.
+2. Store Caffe weights under:
+
+   ```text
+   checkpoints/zhang/
+     colorization_release_v2.caffemodel
+     models_colorization_deploy_v2.prototxt
+     pts_in_hull.npy
+   ```
+
+3. Implement single-frame smoke test first.
+4. Implement folder colorization using the same project backend contract as ChromaNet, InstColorization, and Zhang PyTorch.
+5. Preserve full-resolution luminance and upscale only predicted `ab`.
+6. Add optional post-processing:
+   - saturation gain
+   - color cast correction
+   - luminance-only sharpening
+7. Compare against current PyTorch Zhang ECCV/SIGGRAPH on the same frames.
+8. If better, make it the recommended demo backend while keeping ChromaNet as the custom trained model for project requirements.
+
+### amr-yasser226/video-colorization
+
+Repo checked:
+
+```text
+https://github.com/amr-yasser226/video-colorization
+```
+
+What it uses:
+
+- Custom ResNet34-UNet.
+- Input/output:
+  - input `L`
+  - predict LAB `ab`
+- Training:
+  - 15,000-image COCO 2017 subset
+  - category-aware sampling across COCO classes
+  - 256x256 images
+  - AdamW
+  - L1 regression
+  - mixed precision
+  - about 12 epochs in its documented run
+- Video:
+  - frame extraction
+  - frame-by-frame colorization
+  - `ab` upsampling
+  - EMA smoothing in chroma space
+
+Why it does not immediately fix our issue:
+
+- It is the same general model class as our custom ChromaNet direction: train a model to regress `ab` from `L`.
+- It does not ship a ready local checkpoint in the repo.
+- It documents the same known limitation: L1 regression tends to produce desaturated average colors on ambiguous scenes.
+- It also documents domain-gap issues between COCO and old/noir footage.
+
+Practical value for this project:
+
+- Medium value for later training improvements.
+- Low value for an immediate 2-day demo fix.
+
+Ideas worth borrowing later:
+
+- Category-aware COCO subset creation instead of uniform random image selection.
+- A pretrained encoder backbone if we keep training custom models.
+- EMA smoothing in `ab` space for reducing flicker.
+- Clear report language about limitations, domain gap, and regression-to-mean color.
+- Future training improvements:
+  - perceptual loss
+  - adversarial loss
+  - classification-based quantized `ab` head
+  - domain-specific fine-tuning
+
+### Current Decision
+
+For near-term demo quality:
+
+1. Prefer pretrained Zhang/Hanshu-style Caffe backend.
+2. Keep ChromaNet as the custom-trained model for the project/report.
+3. Use post-processing controls to improve visual output without retraining.
+4. Do not spend the remaining time only adding ChromaNet epochs unless a specific checkpoint test proves it improves people/objects.
+
+For later model quality:
+
+1. Build a more targeted training subset with more people/faces/urban scenes.
+2. Add semantic/color-classification loss instead of pure regression.
+3. Add perceptual or adversarial loss only after the baseline pipeline is stable.
+4. Keep testing on fixed smoke frames:
+   - face/person
+   - beach/sand/water
+   - urban/noir building
+   - nature/mountains
 
 ## Future Plans
 
@@ -307,8 +475,8 @@ Blurry or low-resolution-looking output:
 
 - Some AI adapters still predict a `256x256` color image and then upscale the whole result back into the video frame.
 - This can make the final video look like a stretched `256x256` image, even when the extracted source frames are full resolution.
-- ChromaNet has a partial fix: it preserves the original full-resolution luminance channel and only upscales predicted color channels.
-- InstColorization and older adapters may still need the same full-resolution luminance-preserving path.
+- ChromaNet and InstColorization preserve the original full-resolution luminance channel and only upscale predicted color channels.
+- Older adapters or future model integrations should follow the same full-resolution luminance-preserving path.
 - Test by comparing frame dimensions and sharpness before/after colorization. If dimensions match but details look smeared, the adapter is probably upscaling low-resolution RGB instead of recombining full-resolution luminance with low-resolution color.
 
 ## Troubleshooting

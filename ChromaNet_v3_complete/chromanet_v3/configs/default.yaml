@@ -29,7 +29,7 @@ training:
   grad_clip:        1.0
   mixed_precision:  true          # uses RTX 3060 efficiently (AMP)
   amp_dtype:        "bfloat16"    # wider numerical range than float16 on RTX 4070
-  checkpoint_dir:   "./checkpoints"
+  checkpoint_dir:   "../../checkpoints/chromanet"
   log_every:        50            # print loss every N steps
   save_every:       1             # save every epoch for safe overnight resume
   preview_every:    1             # save validation comparison every epoch
