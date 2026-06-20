@@ -3,6 +3,8 @@ from typing import Literal, Sequence
 from tools.console import status
 
 CHROMANET_MODEL_NAMES = {"colorize_chromanet_v3", "chromanet_v3", "chromanet"}
+ZHANG_MODEL_NAMES = {"colorize_zhang"}
+ENHANCED_ZHANG_MODEL_NAMES = {"Enhanced Zhang (Bebo's Experiment)"}
 
 
 def _ask_float(prompt: str, default: float, min_value: float, max_value: float) -> float:
@@ -48,8 +50,29 @@ def choose_colorization_model(available: Sequence[str]) -> str:
         return available[0]
 
 
-def choose_chromanet_options(model_name: str) -> dict:
+def choose_model_options(model_name: str) -> dict:
     if model_name not in CHROMANET_MODEL_NAMES:
+        if model_name in ZHANG_MODEL_NAMES:
+            variant = choose_zhang_variant()
+            status(f"[info] Zhang base variant={variant}")
+            return {"zhang_variant": variant}
+        if model_name in ENHANCED_ZHANG_MODEL_NAMES:
+            variant = choose_zhang_variant()
+            status(
+                "[info] Enhanced Zhang enables full-resolution luminance "
+                "plus color-cast correction, saturation lift, and contrast tuning."
+            )
+            status(
+                f"[info] Enhanced Zhang base variant={variant} "
+                "| saturation_gain=1.18 | contrast_gain=1.06 | neutralize_ab_bias=0.18"
+            )
+            return {
+                "zhang_variant": variant,
+                "saturation_gain": 1.18,
+                "contrast_gain": 1.06,
+                "neutralize_ab_bias": 0.18,
+                "input_size": 256,
+            }
         return {}
 
     print("ChromaNet style preset:")

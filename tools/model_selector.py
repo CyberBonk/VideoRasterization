@@ -5,10 +5,18 @@ from typing import Optional
 MODEL_ALIASES: dict[str, str] = {
     "instcolorization2025": "colorize_instcolorization2025",
     "inst_colorization": "colorize_instcolorization2025",
+    "Enhanced Zhang (Bebo's Experiment)": "colorize_zhang_enhanced_bebo_experiment",
 }
 PREFERRED_FRIENDLY: dict[str, str] = {
     "colorize_instcolorization2025": "instcolorization2025",
+    "colorize_zhang_enhanced_bebo_experiment": "Enhanced Zhang (Bebo's Experiment)",
 }
+MODEL_DISPLAY_ORDER = [
+    "colorize_chromanet_v3",
+    "instcolorization2025",
+    "colorize_zhang",
+    "Enhanced Zhang (Bebo's Experiment)",
+]
 
 
 def _normalize(name: str) -> str:
@@ -22,12 +30,16 @@ def _friendly(name: str) -> str:
 def scan_available_models(models_root: Path) -> list[str]:
     if not models_root.exists():
         return []
-    found = [_friendly(p.stem) for p in models_root.glob("colorize_*.py")]
+    found = [_friendly(p.stem) for p in sorted(models_root.glob("colorize_*.py"))]
     unique: list[str] = []
     for name in found:
         if name not in unique:
             unique.append(name)
-    return unique
+    ordered = [name for name in MODEL_DISPLAY_ORDER if name in unique]
+    for name in unique:
+        if name not in ordered:
+            ordered.append(name)
+    return ordered
 
 
 def select_model(models_root: Path) -> Optional[str]:

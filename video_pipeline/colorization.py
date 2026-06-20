@@ -16,6 +16,7 @@ INST_MODEL_NAMES = {
     "inst_colorization",
     "colorize_instcolorization2025",
 }
+ENHANCED_ZHANG_MODEL_NAMES = {"Enhanced Zhang (Bebo's Experiment)"}
 
 
 def run_colorization(
@@ -49,6 +50,10 @@ def run_colorization(
             image_size=256,
         )
     else:
+        input_size = model_options.pop(
+            "input_size",
+            256 if model_name in ENHANCED_ZHANG_MODEL_NAMES else 224,
+        )
         model_selector.run_colorizer(
             model_name=model_name,
             frames_dir=model_frames_path,
@@ -59,9 +64,9 @@ def run_colorization(
             use_gpu=use_gpu,
             batch_size=12,
             num_threads=LOGICAL,
-            input_size=224,
+            input_size=input_size,
             progress=True,
-            prefetch_workers=4 if model_name in CHROMANET_MODEL_NAMES else LOGICAL // 4,
+            prefetch_workers=4 if model_name in CHROMANET_MODEL_NAMES else max(2, LOGICAL // 4),
             save_workers=4 if model_name in CHROMANET_MODEL_NAMES else 2,
             max_prefetch_batches=2,
             **model_options,

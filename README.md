@@ -13,6 +13,7 @@ VideoRasterization is a Python CLI pipeline for turning grayscale videos into co
   - `colorize_chromanet_v3`
   - `instcolorization2025`
   - `colorize_zhang`
+  - `Enhanced Zhang (Bebo's Experiment)`
 - ChromaNet v3 integration with CUDA when available
 - ChromaNet style controls:
   - `realistic`
@@ -52,6 +53,10 @@ VideoRasterization/
     AImodels/                     # model adapters
     FFmpeg/                       # extraction and rebuild helpers
     TemporalSmoothing/            # temporal smoothing helper
+  docs/
+    checkpoints/                 # tracked checkpoint note files
+    training_datasets.md         # dataset pros/cons and mixing notes
+  TrainingData/                  # local dataset archive staging area
   ChromaNet_v3_complete/
     chromanet_v3/                 # ChromaNet training and inference code
       configs/default.yaml        # ChromaNet training config
@@ -123,6 +128,13 @@ Color strength: 2 vivid or 3 max / experimental for weak color checkpoints
 Temporal smoothing: blank for off, 9 for smoother videos
 ```
 
+Experimental Zhang choice:
+
+```text
+AI backend: Enhanced Zhang (Bebo's Experiment)
+Base Zhang format: 2 siggraph17
+```
+
 Final output is written beside the input video:
 
 ```text
@@ -179,6 +191,12 @@ Useful checkpoint notes:
 - `checkpoint_epochXXX.pth` stores a specific epoch.
 - `checkpoint_epochXXX_best.pth` stores best validation checkpoints when generated.
 
+Tracked note files:
+
+- `docs/checkpoints/chromanet.md`
+- `docs/checkpoints/instcolorization.md`
+- `docs/checkpoints/zhang.md`
+
 ## ChromaNet Training
 
 Dataset folders expected by the current config:
@@ -187,6 +205,19 @@ Dataset folders expected by the current config:
 ChromaNet_v3_complete/chromanet_v3/data/
   train2017/
   DIV2K_train_HR/
+```
+
+Local dataset archive staging:
+
+```text
+TrainingData/
+  train2017.zip
+```
+
+Dataset comparison notes:
+
+```text
+docs/training_datasets.md
 ```
 
 Training config:
@@ -328,6 +359,18 @@ Suggested integration steps:
    - luminance-only sharpening
 7. Compare against current PyTorch Zhang ECCV/SIGGRAPH on the same frames.
 8. If better, make it the recommended demo backend while keeping ChromaNet as the custom trained model for project requirements.
+
+### Enhanced Zhang (Bebo's Experiment)
+
+This repo now includes a separate experimental backend that keeps the PyTorch Zhang weights but improves repo-side inference behavior:
+
+- preserves full-resolution luminance
+- defaults to `siggraph17` or allows `eccv16`
+- adds mild chroma neutralization to reduce whole-frame beige/orange cast
+- adds a small saturation lift
+- adds a small contrast lift
+
+This is not a new trained model family. It is a safer experiment layer on top of the existing Zhang checkpoints.
 
 ### amr-yasser226/video-colorization
 

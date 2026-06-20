@@ -15,3 +15,6 @@ ChromaNet_v3_complete/chromanet_v3/training.log
 training.log
 ChromaNet_v3_complete/chromanet_v3/training_*.log
 /Videos
+training_instcolorization_full_256.log
+.graphify_*
+graphify-out/

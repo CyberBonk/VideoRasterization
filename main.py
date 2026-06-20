@@ -51,7 +51,7 @@ def main():
 
     available_models = model_selector.scan_available_models(ROOT / "tools" / "AImodels")
     model_name = inference_options.choose_colorization_model(available_models)
-    model_options = inference_options.choose_chromanet_options(model_name)
+    model_options = inference_options.choose_model_options(model_name)
 
 
     use_gpu = cuda_available()
