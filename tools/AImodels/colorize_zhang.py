@@ -27,12 +27,15 @@ except Exception:
 # ---------------- helpers ----------------
 def _list_frames(frames_dir: Path) -> List[Path]:
     d = Path(frames_dir)
-    paths = list(chain(
+    paths = {
+        p.resolve(): p
+        for p in chain(
         d.glob("*.png"), d.glob("*.PNG"),
         d.glob("*.jpg"), d.glob("*.JPG"),
         d.glob("*.jpeg"), d.glob("*.JPEG"),
-    ))
-    return sorted(paths, key=lambda p: p.name)
+        )
+    }
+    return sorted(paths.values(), key=lambda p: p.name)
 
 def _auto_batch_size(threads: int) -> int:
     # bigger cap to keep modern CPUs busy
@@ -92,6 +95,7 @@ def colorize_dir(
     progress: bool = True,                     # print batch progress
     prefetch_workers: Optional[int] = None,    # auto if None (I/O threads)
     save_workers: int = 0,                     # 0=save inline, >0=parallel save
+    **_: object,
 ) -> None:
     frames_dir = Path(frames_dir)
     out_dir = Path(out_dir)
@@ -101,7 +105,10 @@ def colorize_dir(
     threads_info = T_THREADS if torch is not None else (os.cpu_count() or 8)
     if (torch is not None) and (num_threads is not None):
         torch.set_num_threads(num_threads)
-        torch.set_num_interop_threads(num_threads)
+        try:
+            torch.set_num_interop_threads(num_threads)
+        except RuntimeError:
+            pass
         threads_info = num_threads
 
     # list frames
@@ -142,7 +149,6 @@ def colorize_dir(
 
         # stack + forward
         if torch is not None:
-            l_orig_b = torch.cat(l_orig_list, dim=0)
             l_rs_b = torch.cat(l_rs_list, dim=0)
             with torch.inference_mode():
                 out_ab_b = mdl(l_rs_b).cpu()

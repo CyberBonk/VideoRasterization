@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from tools.console import status
 from tools.FFmpeg.rebuild_video import build_video_from_frames
 
 
@@ -24,10 +25,13 @@ def rebuild_video_output(
             codec="h264",
             fps=fps,
             prefer_gpu=True,
+            source_audio=str(source_video),
         )
-        print(f"[ok] video rebuild saved: {default_output}")
+        status(f"[ok] video rebuild saved: {default_output}")
+        return default_output
     except Exception as e:
-        print(f"[warn] video rebuild failed: {e}")
+        status(f"[warn] video rebuild failed: {e}")
+        raise e
 
 
 __all__ = ["rebuild_video_output"]
