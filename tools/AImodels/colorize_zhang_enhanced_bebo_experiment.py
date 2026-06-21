@@ -125,6 +125,7 @@ def colorize_dir(
     prefetch_workers: Optional[int] = None,
     save_workers: int = 2,
     cancel_event=None,
+    pause_event=None,
     **_: object,
 ) -> None:
     _ = (models_dir, preview)
@@ -174,6 +175,9 @@ def colorize_dir(
     t0 = time.time()
 
     while done < total:
+        if pause_event:
+            pause_event.wait()
+            
         if cancel_event and cancel_event.is_set():
             print("\n[warn] Colorization cancelled by user.")
             break

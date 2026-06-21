@@ -393,6 +393,7 @@ def _run_pipeline(job: dict, window: webview.Window):
                     "variant": model_variant,
                     "style": "eccv16",
                     "cancel_event": _cancel_flag,
+                    "pause_event": _pause_flag,
                 }
                 run_colorization(frames_dir, model_name, use_gpu, **opts)
             except Exception as e:

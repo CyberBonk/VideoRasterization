@@ -96,6 +96,7 @@ def colorize_dir(
     prefetch_workers: Optional[int] = None,    # auto if None (I/O threads)
     save_workers: int = 0,                     # 0=save inline, >0=parallel save
     cancel_event=None,
+    pause_event=None,
     **_: object,
 ) -> None:
     frames_dir = Path(frames_dir)
@@ -143,6 +144,9 @@ def colorize_dir(
     t0 = time.time()
 
     while done < total:
+        if pause_event:
+            pause_event.wait()
+            
         if cancel_event and cancel_event.is_set():
             print("\n[warn] Colorization cancelled by user.")
             break

@@ -19,6 +19,7 @@ def colorize_dir(
     use_gpu: bool = True,
     input_size: int = 256,
     batch_size: Optional[int] = 12,
+
     prefetch_workers: int = 4,
     save_workers: int = 4,
     max_prefetch_batches: int = 2,
@@ -28,6 +29,7 @@ def colorize_dir(
     style_preset: str = "realistic",
     checkpoint: Optional[Path] = None,
     cancel_event=None,
+    pause_event=None,
     **_: object,
 ) -> None:
     """Colorize extracted frames using trained ChromaNet v3 checkpoint."""
@@ -69,6 +71,7 @@ def colorize_dir(
         save_workers=save_workers,
         max_prefetch_batches=max_prefetch_batches,
         cancel_event=cancel_event,
+        pause_event=pause_event,
     )
 
 

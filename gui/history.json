@@ -1,72 +1,22 @@
 [
   {
-    "id": "1781995533",
-    "source_path": "C:\\Users\\ahmed\\Desktop\\2 min - Mickey Mouse - The Haunted House (1929) - T.mp4",
-    "output_path": "C:\\Users\\ahmed\\Desktop\\2 min - Mickey Mouse - The Haunted House (1929) - T_colorized.mp4",
-    "model": "chromanet_v3",
+    "id": "1782004262",
+    "source_path": "C:\\Users\\ahmed\\Desktop\\B&w movie,Marty Lewis video 2022.mp4",
+    "output_path": "C:\\Users\\ahmed\\Desktop\\B&w movie,Marty Lewis video 2022_smoothed.mp4",
+    "model": "enhanced_zhang_bebo",
     "preset": "balanced",
     "status": "completed",
-    "created": "2026-06-20T22:45:33Z",
-    "total_frames": 190
+    "created": "2026-06-21T01:11:02Z",
+    "total_frames": 272
   },
   {
-    "id": "1781995320",
-    "source_path": "C:\\Users\\ahmed\\Desktop\\2 min - Mickey Mouse - The Haunted House (1929) - T.mp4",
-    "output_path": "C:\\Users\\ahmed\\Desktop\\2 min - Mickey Mouse - The Haunted House (1929) - T_smoothed.mp4",
-    "model": "chromanet_v3",
+    "id": "1782004165",
+    "source_path": "C:\\Users\\ahmed\\Desktop\\B&w movie,Marty Lewis video 2022.mp4",
+    "output_path": "C:\\Users\\ahmed\\Desktop\\B&w movie,Marty Lewis video 2022_smoothed.mp4",
+    "model": "enhanced_zhang_bebo",
     "preset": "balanced",
     "status": "completed",
-    "created": "2026-06-20T22:42:00Z",
-    "total_frames": 190
-  },
-  {
-    "id": "1781995111",
-    "source_path": "C:\\Users\\ahmed\\Desktop\\2 min - Mickey Mouse - The Haunted House (1929) - T.mp4",
-    "output_path": "C:\\Users\\ahmed\\Desktop\\2 min - Mickey Mouse - The Haunted House (1929) - T_colorized.mp4",
-    "model": "chromanet_v3",
-    "preset": "balanced",
-    "status": "completed",
-    "created": "2026-06-20T22:38:31Z",
-    "total_frames": 190
-  },
-  {
-    "id": "1781993275",
-    "source_path": "C:\\Users\\ahmed\\Desktop\\2 min - Mickey Mouse - The Haunted House (1929) - T.mp4",
-    "output_path": "C:\\Users\\ahmed\\Desktop\\2 min - Mickey Mouse - The Haunted House (1929) - T_smoothed.mp4",
-    "model": "chromanet_v3",
-    "preset": "balanced",
-    "status": "completed",
-    "created": "2026-06-20T22:07:55Z",
-    "total_frames": 190
-  },
-  {
-    "id": "1781992848",
-    "source_path": "C:\\Users\\ahmed\\Desktop\\2 min - Mickey Mouse - The Haunted House (1929) - T.mp4",
-    "output_path": "C:\\Users\\ahmed\\Desktop\\2 min - Mickey Mouse - The Haunted House (1929) - T_smoothed.mp4",
-    "model": "chromanet_v3",
-    "preset": "balanced",
-    "status": "completed",
-    "created": "2026-06-20T22:00:48Z",
-    "total_frames": 190
-  },
-  {
-    "id": "1781992120",
-    "source_path": "C:\\Users\\ahmed\\Desktop\\2 min - Mickey Mouse - The Haunted House (1929) - Trim.mp4",
-    "output_path": "C:\\Users\\ahmed\\Desktop\\2 min - Mickey Mouse - The Haunted House (1929) - Trim_smoothed.mp4",
-    "model": "chromanet_v3",
-    "preset": "balanced",
-    "status": "completed",
-    "created": "2026-06-20T21:48:40Z",
-    "total_frames": 547
-  },
-  {
-    "id": "1781991604",
-    "source_path": "C:\\Users\\ahmed\\Desktop\\2 min - Mickey Mouse - The Haunted House (1929) - Trim.mp4",
-    "output_path": "C:\\Users\\ahmed\\Desktop\\2 min - Mickey Mouse - The Haunted House (1929) - Trim_smoothed.mp4",
-    "model": "chromanet_v3",
-    "preset": "balanced",
-    "status": "completed",
-    "created": "2026-06-20T21:40:04Z",
-    "total_frames": 547
+    "created": "2026-06-21T01:09:25Z",
+    "total_frames": 272
   }
 ]

@@ -411,10 +411,11 @@ input, select, textarea { font-family: inherit; outline: none; }
   color: var(--text-tertiary);
 }
 .recent-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px;
+  display: flex; flex-direction: row; flex-wrap: nowrap; gap: 12px;
+  overflow-x: auto; padding-bottom: 8px;
 }
 .recent-card {
+  flex: 0 0 280px;
   background: var(--surface-1); border: 1px solid var(--border);
   border-radius: var(--radius-md); overflow: hidden; cursor: pointer;
   transition: all 100ms var(--ease-out);
@@ -959,9 +960,6 @@ canvas.sparkline { width: 100%; height: 48px; display: block; }
       <span class="breadcrumb-current">Welcome</span>
     </div>
     <div class="header-actions" id="header-actions">
-      <div id="hw-chip" style="display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text-secondary);padding:6px 12px;background:var(--surface-1);border:1px solid var(--border);border-radius:var(--radius-md);">
-        <span>Detecting hardware…</span>
-      </div>
     </div>
   </header>
 
@@ -988,13 +986,6 @@ canvas.sparkline { width: 100%; height: 48px; display: block; }
               <span class="fmt-chip">WebM</span>
               <span class="fmt-chip">M4V</span>
             </div>
-          </div>
-          <div class="drop-actions" style="margin-top:16px;">
-            <button class="btn btn-secondary btn-sm" onclick="CS.browseFolder()">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-              Open Folder
-            </button>
-            <button class="btn btn-ghost btn-sm" onclick="CS.browseFile()">Browse Files</button>
           </div>
         </div>
 
@@ -1269,13 +1260,14 @@ canvas.sparkline { width: 100%; height: 48px; display: block; }
           </div>
 
           <!-- Controls -->
-          <div style="display:flex;gap:8px;">
+          <div style="display:flex;flex-direction:column;gap:8px;">
             <button class="btn btn-secondary w-full" id="pause-btn" onclick="CS.pauseResume()">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
               Pause
             </button>
-            <button class="btn btn-danger btn-sm" onclick="CS.cancelProcessing()">
+            <button class="btn btn-danger w-full" onclick="CS.cancelProcessing()">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+              Cancel
             </button>
           </div>
         </div>
@@ -1447,7 +1439,7 @@ const CS = {
     crumb.innerHTML = crumbMap[state] || '';
 
     const actionsMap = {
-      welcome: `<div id="hw-chip">${this._hwChipHTML()}</div>`,
+      welcome: '',
       config: `<button class="btn btn-ghost btn-sm" onclick="CS.goToState('welcome')">← Back</button><button class="btn btn-secondary btn-sm" onclick="CS.goToPreview()">Preview</button><button class="btn btn-primary" onclick="CS.startProcessing()"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Process</button>`,
       preview: `<button class="btn btn-ghost btn-sm" onclick="CS.goToConfig()">← Configure</button><button class="btn btn-primary btn-sm" onclick="CS.startProcessing()">Process</button>`,
       processing: `<button class="btn btn-secondary btn-sm" id="hdr-pause" onclick="CS.pauseResume()">Pause</button><button class="btn btn-danger btn-sm" onclick="CS.cancelProcessing()">Cancel</button>`,
@@ -1490,8 +1482,6 @@ const CS = {
 
   _onHardwareReady(hw) {
     _hwSummary = hw || {};
-    const chip = document.getElementById('hw-chip');
-    if (chip) chip.innerHTML = this._hwChipHTML();
     const bar = document.getElementById('hw-bar');
     if (!bar) return;
     const items = [];
