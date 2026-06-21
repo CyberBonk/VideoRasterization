@@ -514,7 +514,6 @@ def _run_pipeline(job: dict, window: webview.Window):
             "created": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "total_frames": total_frames,
         })
-        emit("pipeline_complete", output_path=str(output_path))
 
     except InterruptedError:
         emit("pipeline_cancelled")

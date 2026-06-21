@@ -455,9 +455,10 @@ input, select, textarea { font-family: inherit; outline: none; }
 /* Hardware Status */
 .hw-bar {
   display: flex; align-items: center; gap: 16px;
-  padding: 14px 20px;
+  padding: 14px 20px; width: 100%;
   background: var(--surface-1); border: 1px solid var(--border);
   border-radius: var(--radius-md);
+  box-sizing: border-box;
 }
 .hw-item { display: flex; align-items: center; gap: 8px; font-size: 12px; }
 .hw-label { color: var(--text-tertiary); }
@@ -1281,7 +1282,7 @@ canvas.sparkline { width: 100%; height: 48px; display: block; }
         <div class="viewer-placeholder" id="review-viewer-placeholder" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="12" cy="12" r="10"/><polyline points="10 8 16 12 10 16 10 8"/></svg>
           <span style="font-size:13px;color:var(--text-tertiary);">Processing complete — output ready</span>
-          <button class="btn btn-primary" onclick="CS.playOutputVideo()" style="margin-top:8px;">
+          <button class="btn btn-primary" id="play-external-btn" onclick="CS.playOutputVideo()" style="margin-top:8px;display:none;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
             Play Video Externally
           </button>
@@ -1900,10 +1901,14 @@ const CS = {
     // Video Player
     const vid = document.getElementById('output-video-player');
     const ph = document.getElementById('review-viewer-placeholder');
+    const playBtn = document.getElementById('play-external-btn');
     if (vid && ph && previewVideo) {
       vid.src = previewVideo + "?t=" + Date.now();
       vid.style.display = 'block';
       ph.style.display = 'none';
+    } else if (ph) {
+      // No inline preview — show the "Play Externally" button
+      if (playBtn) playBtn.style.display = '';
     }
   },
 
