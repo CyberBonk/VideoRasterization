@@ -133,7 +133,7 @@ def generate_report(frames_gray_dir: Path, frames_color_dir: Path,
         hsv = _to_hsv(rgb)
         sat_values.append(hsv[..., 1].reshape(-1))
 
-    mean_rgb = tuple(np.array(rgb_means).mean(0))
+    mean_rgb = tuple(round(float(x)) for x in np.array(rgb_means).mean(0))
     sats_flat = np.concatenate(sat_values, axis=0)
 
     # ------------------------------------------------------------------
@@ -187,7 +187,7 @@ def generate_report(frames_gray_dir: Path, frames_color_dir: Path,
     ax.set_title(f"Last (color): {c_last.name}")
     ax.axis("off")
 
-    fig.suptitle(f"Colorization Report\nMean RGB: {mean_rgb}", fontsize=12)
+    fig.suptitle(f"Colorization Report\nMean RGB: ({mean_rgb[0]}, {mean_rgb[1]}, {mean_rgb[2]})", fontsize=12)
     plt.savefig(out_png, dpi=120, bbox_inches="tight")
     plt.close(fig)
 
@@ -198,7 +198,7 @@ def generate_report(frames_gray_dir: Path, frames_color_dir: Path,
         "frames_gray_dir": str(frames_gray_dir),
         "frames_color_dir": str(frames_color_dir),
         "num_frames": len(color_frames),
-        "mean_rgb": {"r": mean_rgb[0], "g": mean_rgb[1], "b": mean_rgb[2]},
+        "mean_rgb": {"r": int(mean_rgb[0]), "g": int(mean_rgb[1]), "b": int(mean_rgb[2])},
         "saturation_histogram": {"bins": 40, "range": [0, 255]},
     }
 

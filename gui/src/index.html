@@ -1114,7 +1114,7 @@ canvas.sparkline { width: 100%; height: 48px; display: block; }
           <span>No preview available yet</span>
           <button class="btn btn-secondary" onclick="CS.goToConfig()">← Back to Configure</button>
         </div>
-        <div class="comparison-toolbar">
+        <div class="comparison-toolbar" style="display:none;">
           <div class="cmp-btn active" onclick="CS.setCmpMode('wipe')">Wipe</div>
           <div class="cmp-btn" onclick="CS.setCmpMode('side')">Side by Side</div>
           <div class="cmp-btn" onclick="CS.setCmpMode('split')">Split</div>
@@ -1441,10 +1441,10 @@ const CS = {
 
     const actionsMap = {
       welcome: '',
-      config: `<button class="btn btn-ghost btn-sm" onclick="CS.goToState('welcome')">← Back</button><button class="btn btn-secondary btn-sm" onclick="CS.goToPreview()">Preview</button><button class="btn btn-primary" onclick="CS.startProcessing()"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Process</button>`,
+      config: `<button class="btn btn-ghost btn-sm" onclick="CS.goToState('welcome')">← Back</button><button class="btn btn-primary" onclick="CS.startProcessing()"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Process</button>`,
       preview: `<button class="btn btn-ghost btn-sm" onclick="CS.goToConfig()">← Configure</button><button class="btn btn-primary btn-sm" onclick="CS.startProcessing()">Process</button>`,
       processing: `<button class="btn btn-secondary btn-sm" id="hdr-pause" onclick="CS.pauseResume()">Pause</button><button class="btn btn-danger btn-sm" onclick="CS.cancelProcessing()">Cancel</button>`,
-      review: `<button class="btn btn-ghost btn-sm" onclick="CS.startNew()">New Project</button><button class="btn btn-primary btn-sm" onclick="CS.openOutputInExplorer()">Open Folder</button>`,
+      review: `<button class="btn btn-ghost btn-sm" onclick="CS.startNew()">New Project</button><button class="btn btn-secondary btn-sm" onclick="CS.goToPreview()">Preview Original</button><button class="btn btn-primary btn-sm" onclick="CS.openOutputInExplorer()">Open Folder</button>`,
     };
     actions.innerHTML = actionsMap[state] || '';
   },
@@ -1706,6 +1706,18 @@ const CS = {
           vid.src = localSrc + "?t=" + Date.now();
           vid.style.display = 'block';
           ph.style.display = 'none';
+          // Wire up timeline sync
+          vid.onloadedmetadata = () => {
+            const durEl = document.getElementById('timeline-dur');
+            if (durEl) durEl.textContent = formatSecs(vid.duration);
+          };
+          vid.ontimeupdate = () => {
+            const pct = vid.duration ? (vid.currentTime / vid.duration) * 100 : 0;
+            const head = document.getElementById('timeline-playhead');
+            if (head) head.style.left = pct + '%';
+            const timeEl = document.getElementById('playback-time');
+            if (timeEl) timeEl.textContent = `${formatSecs(vid.currentTime)} / ${formatSecs(vid.duration || 0)}`;
+          };
         }
       } catch(e) {}
     }
