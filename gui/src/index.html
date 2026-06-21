@@ -1509,7 +1509,7 @@ const CS = {
       empty.style.display = 'flex';
       return;
     }
-    grid.style.display = 'grid';
+    grid.style.display = 'flex';
     empty.style.display = 'none';
     grid.innerHTML = history.slice(0, 6).map((item, i) => {
       const name = item.source_path ? item.source_path.split(/[\\/]/).pop() : 'Unknown';
