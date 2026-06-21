@@ -342,8 +342,10 @@ input, select, textarea { font-family: inherit; outline: none; }
    ═══════════════════════════════════════════════════════════════════════════ */
 #state-welcome {
   flex-direction: column;
+  align-items: center;
   padding: 32px 40px;
   overflow-y: auto;
+  overflow-x: hidden;
   gap: 32px;
 }
 
@@ -1018,7 +1020,7 @@ canvas.sparkline { width: 100%; height: 48px; display: block; }
 
     <!-- ══════════ STATE 1: WELCOME ══════════ -->
     <div class="state" id="state-welcome">
-      <div class="drop-zone-wrapper" style="width:100%;max-width:900px;margin:0 auto;padding:32px 40px;display:flex;flex-direction:column;gap:32px;">
+      <div class="drop-zone-wrapper" style="width:100%;max-width:900px;display:flex;flex-direction:column;gap:32px;">
 
         <!-- Drop Zone -->
         <div style="display:flex;flex-direction:column;align-items:center;">
@@ -1040,12 +1042,12 @@ canvas.sparkline { width: 100%; height: 48px; display: block; }
         </div>
 
         <!-- Recent Projects -->
-        <div id="recent-section" style="min-width:0;overflow:hidden;">
+        <div id="recent-section" style="width:100%;min-width:0;">
           <div class="section-header">
             <span class="section-title">Recent Projects</span>
             <button class="btn btn-ghost btn-sm" onclick="CS.clearHistory()">Clear</button>
           </div>
-          <div class="recent-grid" id="recent-grid">
+          <div class="recent-grid" id="recent-grid" style="max-width:100%;">
             <!-- populated by JS -->
           </div>
           <div id="recent-empty" class="empty-state" style="display:none;">
