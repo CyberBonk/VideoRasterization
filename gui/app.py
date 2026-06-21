@@ -743,6 +743,7 @@ def main():
         min_size=(1024, 680),
         background_color="#0E0E0E",
         text_select=False,
+        maximized=True,
     )
 
     api.set_window(window)
