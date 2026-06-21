@@ -630,7 +630,7 @@ input, select, textarea { font-family: inherit; outline: none; }
   display: flex; gap: 4px; 
   background: rgba(14,14,14,.85); backdrop-filter: blur(8px);
   border: 1px solid var(--border); border-radius: var(--radius-md); padding: 4px;
-  opacity: 0; transition: opacity 200ms;
+  opacity: 0; transition: opacity 200ms; z-index: 20;
 }
 .viewer-wrapper:hover .comparison-toolbar { opacity: 1; }
 .cmp-btn {
@@ -640,6 +640,51 @@ input, select, textarea { font-family: inherit; outline: none; }
 }
 .cmp-btn:hover { background: var(--surface-2); color: var(--text-primary); }
 .cmp-btn.active { background: var(--accent); color: #fff; }
+
+/* Comparison modes */
+.cmp-side-by-side {
+  display: flex; flex-direction: row; width: 100%; height: 100%;
+}
+.cmp-side-by-side video { width: 50%; height: 100%; object-fit: contain; }
+.cmp-side-by-side .cmp-divider {
+  width: 2px; background: var(--border); flex-shrink: 0;
+}
+.cmp-side-by-side .cmp-label {
+  position: absolute; bottom: 12px; padding: 4px 10px; border-radius: var(--radius-sm);
+  font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  background: rgba(14,14,14,.85); color: var(--text-secondary); pointer-events: none; z-index: 5;
+}
+.cmp-side-by-side .cmp-label-left { left: 12px; }
+.cmp-side-by-side .cmp-label-right { right: 12px; }
+
+.cmp-split-container {
+  position: relative; width: 100%; height: 100%; overflow: hidden;
+}
+.cmp-split-container video {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain;
+}
+.cmp-split-container .cmp-split-top { clip-path: inset(0 50% 0 0); z-index: 2; }
+.cmp-split-container .cmp-split-slider {
+  position: absolute; top: 0; bottom: 0; width: 4px; left: 50%; z-index: 10;
+  background: var(--accent); cursor: ew-resize; transform: translateX(-50%);
+}
+.cmp-split-container .cmp-split-slider::after {
+  content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 28px; height: 28px; border-radius: 50%; background: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,.5);
+}
+.cmp-split-container .cmp-split-slider::before {
+  content: '⟨ ⟩'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  font-size: 12px; font-weight: 700; color: #fff; z-index: 11;
+}
+.cmp-split-container .cmp-label {
+  position: absolute; bottom: 12px; padding: 4px 10px; border-radius: var(--radius-sm);
+  font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  background: rgba(14,14,14,.85); color: var(--text-secondary); pointer-events: none; z-index: 5;
+}
+.cmp-split-container .cmp-label-left { left: 12px; }
+.cmp-split-container .cmp-label-right { right: 12px; }
 
 /* Timeline */
 .timeline-wrap {
@@ -1105,29 +1150,18 @@ canvas.sparkline { width: 100%; height: 48px; display: block; }
       </div>
     </div>
 
-    <!-- ══════════ STATE 3: PREVIEW ══════════ -->
+    <!-- ══════════ STATE 3: COMPARISON PREVIEW ══════════ -->
     <div class="state" id="state-preview">
       <div class="viewer-wrapper" id="preview-viewer">
-        <video id="input-video-player" controls style="width:100%;height:100%;background:#000;display:none;"></video>
+        <!-- Comparison content injected by JS -->
+        <div id="cmp-content"></div>
         <div class="viewer-placeholder" id="preview-viewer-placeholder">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/></svg>
-          <span>No preview available yet</span>
-          <button class="btn btn-secondary" onclick="CS.goToConfig()">← Back to Configure</button>
+          <span>Loading comparison…</span>
         </div>
-        <div class="comparison-toolbar" style="display:none;">
-          <div class="cmp-btn active" onclick="CS.setCmpMode('wipe')">Wipe</div>
-          <div class="cmp-btn" onclick="CS.setCmpMode('side')">Side by Side</div>
-          <div class="cmp-btn" onclick="CS.setCmpMode('split')">Split</div>
-        </div>
-      </div>
-      <div class="timeline-wrap" id="preview-timeline">
-        <div class="timeline-strip" id="timeline-strip">
-          <!-- thumbnails -->
-          <div class="timeline-playhead" id="timeline-playhead"></div>
-        </div>
-        <div class="timeline-time-bar">
-          <span>0:00</span>
-          <span id="timeline-dur">—</span>
+        <div class="comparison-toolbar">
+          <div class="cmp-btn active" data-mode="side" onclick="CS.setCmpMode('side')">Side by Side</div>
+          <div class="cmp-btn" data-mode="split" onclick="CS.setCmpMode('split')">Split</div>
         </div>
       </div>
       <div class="playback-bar">
@@ -1136,10 +1170,7 @@ canvas.sparkline { width: 100%; height: 48px; display: block; }
         <button class="btn btn-ghost btn-icon" onclick="CS.seek(10)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg></button>
         <span class="playback-time" id="playback-time">0:00 / 0:00</span>
         <div style="flex:1;"></div>
-        <button class="btn btn-secondary btn-sm" onclick="CS.startProcessing()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-          Process
-        </button>
+        <button class="btn btn-ghost btn-sm" onclick="CS.goToState('review')">Back to Review</button>
       </div>
     </div>
 
@@ -1442,9 +1473,9 @@ const CS = {
     const actionsMap = {
       welcome: '',
       config: `<button class="btn btn-ghost btn-sm" onclick="CS.goToState('welcome')">← Back</button><button class="btn btn-primary" onclick="CS.startProcessing()"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Process</button>`,
-      preview: `<button class="btn btn-ghost btn-sm" onclick="CS.goToConfig()">← Configure</button><button class="btn btn-primary btn-sm" onclick="CS.startProcessing()">Process</button>`,
+      preview: `<button class="btn btn-ghost btn-sm" onclick="CS.goToState('review')">← Review</button>`,
       processing: `<button class="btn btn-secondary btn-sm" id="hdr-pause" onclick="CS.pauseResume()">Pause</button><button class="btn btn-danger btn-sm" onclick="CS.cancelProcessing()">Cancel</button>`,
-      review: `<button class="btn btn-ghost btn-sm" onclick="CS.startNew()">New Project</button><button class="btn btn-secondary btn-sm" onclick="CS.goToPreview()">Preview Original</button><button class="btn btn-primary btn-sm" onclick="CS.openOutputInExplorer()">Open Folder</button>`,
+      review: `<button class="btn btn-ghost btn-sm" onclick="CS.startNew()">New Project</button><button class="btn btn-secondary btn-sm" onclick="CS.goToPreview()">Compare</button><button class="btn btn-primary btn-sm" onclick="CS.openOutputInExplorer()">Open Folder</button>`,
     };
     actions.innerHTML = actionsMap[state] || '';
   },
@@ -1696,31 +1727,16 @@ const CS = {
   goToConfig() { this.goToState('config'); },
 
   async goToPreview() {
-    if (!_currentJob.video_path) return;
-    const vid = document.getElementById('input-video-player');
-    const ph = document.getElementById('preview-viewer-placeholder');
-    if (vid && ph) {
-      try {
-        const localSrc = await api('prepare_preview_video', _currentJob.video_path);
-        if (localSrc) {
-          vid.src = localSrc + "?t=" + Date.now();
-          vid.style.display = 'block';
-          ph.style.display = 'none';
-          // Wire up timeline sync
-          vid.onloadedmetadata = () => {
-            const durEl = document.getElementById('timeline-dur');
-            if (durEl) durEl.textContent = formatSecs(vid.duration);
-          };
-          vid.ontimeupdate = () => {
-            const pct = vid.duration ? (vid.currentTime / vid.duration) * 100 : 0;
-            const head = document.getElementById('timeline-playhead');
-            if (head) head.style.left = pct + '%';
-            const timeEl = document.getElementById('playback-time');
-            if (timeEl) timeEl.textContent = `${formatSecs(vid.currentTime)} / ${formatSecs(vid.duration || 0)}`;
-          };
-        }
-      } catch(e) {}
+    if (!_outputPath) {
+      toast('No output', 'Process a video first to compare.', 'warning');
+      return;
     }
+    // Ensure both original and output are ready as local files
+    try {
+      await api('prepare_preview_video', _currentJob.video_path);
+    } catch(e) {}
+    // Render the comparison
+    this._renderComparison();
     this.goToState('preview');
   },
 
@@ -1966,23 +1982,116 @@ const CS = {
     this._loadWelcomeData();
   },
 
-  // ── Preview state ─────────────────────────────────────────────────────────
+  // ── Preview state (comparison viewer) ───────────────────────────────────────
+  _cmpMode: 'side',
+  _cmpVideos: [],
+
   togglePlay() {
-    const v = document.querySelector('#preview-viewer video');
-    if (!v) return;
-    v.paused ? v.play() : v.pause();
+    const vids = document.querySelectorAll('#cmp-content video');
+    if (!vids.length) return;
+    const primary = vids[0];
+    if (primary.paused) {
+      vids.forEach(v => v.play());
+    } else {
+      vids.forEach(v => v.pause());
+    }
     const btn = document.getElementById('play-pause-btn');
-    btn.innerHTML = v.paused
+    btn.innerHTML = primary.paused
       ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>'
       : '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
   },
+
   seek(secs) {
-    const v = document.querySelector('#preview-viewer video');
-    if (v) v.currentTime = Math.max(0, v.currentTime + secs);
+    const vids = document.querySelectorAll('#cmp-content video');
+    vids.forEach(v => v.currentTime = Math.max(0, v.currentTime + secs));
   },
+
   setCmpMode(mode) {
-    document.querySelectorAll('.cmp-btn').forEach(b => b.classList.remove('active'));
-    event.target.classList.add('active');
+    this._cmpMode = mode;
+    document.querySelectorAll('.cmp-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.mode === mode);
+    });
+    this._renderComparison();
+  },
+
+  _renderComparison() {
+    const container = document.getElementById('cmp-content');
+    const ph = document.getElementById('preview-viewer-placeholder');
+    if (!container) return;
+
+    const origSrc = 'input_preview.mp4?t=' + Date.now();
+    const outSrc = 'output_preview.mp4?t=' + Date.now();
+
+    if (this._cmpMode === 'side') {
+      container.innerHTML = `
+        <div class="cmp-side-by-side">
+          <video id="cmp-vid-orig" muted loop></video>
+          <div class="cmp-divider"></div>
+          <video id="cmp-vid-out" muted loop></video>
+          <div class="cmp-label cmp-label-left">Original</div>
+          <div class="cmp-label cmp-label-right">Colorized</div>
+        </div>`;
+    } else {
+      container.innerHTML = `
+        <div class="cmp-split-container">
+          <video id="cmp-vid-orig" muted loop></video>
+          <video id="cmp-vid-out" class="cmp-split-top" muted loop></video>
+          <div class="cmp-split-slider" id="cmp-split-slider"></div>
+          <div class="cmp-label cmp-label-left">Original</div>
+          <div class="cmp-label cmp-label-right">Colorized</div>
+        </div>`;
+      this._initSplitSlider();
+    }
+
+    const origVid = document.getElementById('cmp-vid-orig');
+    const outVid = document.getElementById('cmp-vid-out');
+    origVid.src = origSrc;
+    outVid.src = outSrc;
+
+    // Sync playback
+    origVid.onloadedmetadata = () => {
+      const timeEl = document.getElementById('playback-time');
+      if (timeEl) timeEl.textContent = `0:00 / ${formatSecs(origVid.duration || 0)}`;
+    };
+    origVid.ontimeupdate = () => {
+      const timeEl = document.getElementById('playback-time');
+      if (timeEl) timeEl.textContent = `${formatSecs(origVid.currentTime)} / ${formatSecs(origVid.duration || 0)}`;
+      // Keep output in sync
+      if (Math.abs(outVid.currentTime - origVid.currentTime) > 0.3) {
+        outVid.currentTime = origVid.currentTime;
+      }
+    };
+    origVid.onplay = () => { outVid.play(); };
+    origVid.onpause = () => { outVid.pause(); };
+
+    if (ph) ph.style.display = 'none';
+    container.style.display = 'block';
+    container.style.width = '100%';
+    container.style.height = '100%';
+  },
+
+  _initSplitSlider() {
+    const slider = document.getElementById('cmp-split-slider');
+    const container = slider?.parentElement;
+    const topVid = document.getElementById('cmp-vid-out');
+    if (!slider || !container || !topVid) return;
+
+    let dragging = false;
+    const onMove = (e) => {
+      if (!dragging) return;
+      const rect = container.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      let pct = ((clientX - rect.left) / rect.width) * 100;
+      pct = Math.max(5, Math.min(95, pct));
+      slider.style.left = pct + '%';
+      topVid.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
+    };
+    slider.addEventListener('mousedown', () => dragging = true);
+    slider.addEventListener('touchstart', () => dragging = true);
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('touchmove', onMove);
+    document.addEventListener('mouseup', () => dragging = false);
+    document.addEventListener('touchend', () => dragging = false);
   },
 
   // ── System metrics ────────────────────────────────────────────────────────
