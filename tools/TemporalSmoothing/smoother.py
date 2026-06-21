@@ -250,19 +250,29 @@ def _load_gray_l_channel(gray_path: str) -> "np.ndarray":
     gray_bgr = cv2.imread(gray_path, cv2.IMREAD_GRAYSCALE)
     if gray_bgr is None:
         raise FileNotFoundError(f"Gray frame not found: {gray_path}")
-    gray_float = gray_bgr.astype(np.float32) / 255.0
-    rgb = np.repeat(gray_float[:, :, None], 3, axis=2)
-    return skcolor.rgb2lab(rgb)[:, :, 0]
+    return _gray_to_lab_l(gray_bgr)
+
+
+def _gray_to_lab_l(gray: "np.ndarray") -> "np.ndarray":
+    # For grayscale frames, OpenCV's 8-bit Lab conversion is much faster than
+    # skimage and preserves the luminance relationship we need for stabilization.
+    gray_bgr = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+    lab = cv2.cvtColor(gray_bgr, cv2.COLOR_BGR2LAB)
+    return lab[:, :, 0].astype(np.float32) * (100.0 / 255.0)
 
 
 def _bgr_to_lab(bgr: "np.ndarray") -> "np.ndarray":
-    rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
-    return skcolor.rgb2lab(rgb).astype(np.float32)
+    lab = cv2.cvtColor(bgr, cv2.COLOR_BGR2LAB).astype(np.float32)
+    lab[:, :, 0] *= 100.0 / 255.0
+    lab[:, :, 1:] -= 128.0
+    return lab
 
 
 def _lab_to_bgr(lab: "np.ndarray") -> "np.ndarray":
-    rgb = np.clip(skcolor.lab2rgb(lab), 0.0, 1.0)
-    return cv2.cvtColor((rgb * 255.0).astype(np.uint8), cv2.COLOR_RGB2BGR)
+    lab8 = lab.copy()
+    lab8[:, :, 0] = np.clip(lab8[:, :, 0] * (255.0 / 100.0), 0.0, 255.0)
+    lab8[:, :, 1:] = np.clip(lab8[:, :, 1:] + 128.0, 0.0, 255.0)
+    return cv2.cvtColor(lab8.astype(np.uint8), cv2.COLOR_LAB2BGR)
 
 
 def _warp_prev_to_current(prev: "np.ndarray", flow_backward: "np.ndarray") -> "np.ndarray":
@@ -312,7 +322,7 @@ def _apply_flow_chroma(
 
     prev_stable_lab = _bgr_to_lab(first_color)
     prev_stable_gray = prev_gray
-    prev_stable_lab[:, :, 0] = _load_gray_l_channel(os.path.join(gray_dir, first_gray_name))
+    prev_stable_lab[:, :, 0] = _gray_to_lab_l(prev_gray)
     cv2.imwrite(os.path.join(out_dir, first_color_name), _lab_to_bgr(prev_stable_lab))
 
     for idx in range(1, total):
@@ -325,7 +335,7 @@ def _apply_flow_chroma(
             continue
 
         curr_lab = _bgr_to_lab(curr_color)
-        curr_lab[:, :, 0] = _load_gray_l_channel(os.path.join(gray_dir, gray_name))
+        curr_lab[:, :, 0] = _gray_to_lab_l(curr_gray)
 
         flow_backward = cv2.calcOpticalFlowFarneback(
             curr_gray,
@@ -394,9 +404,6 @@ def apply_temporal_smoothing(
         return
 
     if selected_mode == "flow_chroma":
-        if skcolor is None:
-            print("[error] scikit-image is required for flow_chroma smoothing.")
-            return
         if not gray_input_folder:
             raise ValueError("gray_input_folder is required for flow_chroma smoothing.")
         _apply_flow_chroma(
