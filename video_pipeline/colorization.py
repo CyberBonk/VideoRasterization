@@ -60,7 +60,6 @@ def run_colorization(
             frames_dir=model_frames_path,
             color_dir=color_dir,
             models_dir=ROOT / "models",
-            zhang_variant=None,
             preview=False,
             use_gpu=use_gpu,
             batch_size=batch_size,
