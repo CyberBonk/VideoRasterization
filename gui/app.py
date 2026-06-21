@@ -618,6 +618,23 @@ class ChromaAPI:
             sp.Popen(["explorer", str(p)])
         return {"ok": True}
 
+    def prepare_preview_video(self, path: str) -> str:
+        """Create a hardlink (or copy) of the input video so WebView can play it."""
+        try:
+            preview_mp4 = SRC_DIR / "input_preview.mp4"
+            if preview_mp4.exists():
+                preview_mp4.unlink()
+            try:
+                import os
+                os.link(path, preview_mp4)
+            except OSError:
+                import shutil
+                shutil.copyfile(path, preview_mp4)
+            return "input_preview.mp4"
+        except Exception as e:
+            print(f"Error preparing preview: {e}")
+            return ""
+
     def get_video_info(self, path: str) -> dict:
         """Return basic video metadata using FFmpeg."""
         try:

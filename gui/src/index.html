@@ -1694,14 +1694,19 @@ const CS = {
 
   goToConfig() { this.goToState('config'); },
 
-  goToPreview() {
+  async goToPreview() {
     if (!_currentJob.video_path) return;
     const vid = document.getElementById('input-video-player');
     const ph = document.getElementById('preview-viewer-placeholder');
     if (vid && ph) {
-      vid.src = `file:///${_currentJob.video_path.replace(/\\/g,'/')}`;
-      vid.style.display = 'block';
-      ph.style.display = 'none';
+      try {
+        const localSrc = await api('prepare_preview_video', _currentJob.video_path);
+        if (localSrc) {
+          vid.src = localSrc + "?t=" + Date.now();
+          vid.style.display = 'block';
+          ph.style.display = 'none';
+        }
+      } catch(e) {}
     }
     this.goToState('preview');
   },
