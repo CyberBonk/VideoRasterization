@@ -184,6 +184,14 @@ class Trainer:
                 **{f"val_{k}":v/n for k,v in tm.items()}}
 
     def fit(self, train_loader: DataLoader, val_loader: DataLoader) -> list[dict]:
+        if self.start_epoch >= self.epochs:
+            raise ValueError(
+                f"Checkpoint already completed epoch {self.start_epoch}, but "
+                f"training.epochs is {self.epochs}. Set --epochs to the final "
+                f"target epoch, e.g. --epochs {self.start_epoch + 1} to train "
+                "one more epoch."
+            )
+
         print(f"\n{'='*64}")
         amp_label = str(self.amp_dtype).replace("torch.", "") if self.use_amp else "off"
         print(f"  ChromaNet v3  |  RTX 4070  |  AMP={amp_label}")
