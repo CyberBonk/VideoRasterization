@@ -18,3 +18,5 @@ ChromaNet_v3_complete/chromanet_v3/training_*.log
 training_instcolorization_full_256.log
 .graphify_*
 graphify-out/
+tools/AImodels/DataSets/
+tools/AImodels/instcolorization2025/checkpoints/

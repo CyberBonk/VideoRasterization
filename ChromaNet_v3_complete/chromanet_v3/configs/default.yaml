@@ -15,15 +15,15 @@ model:
   use_confidence:   true
 
 data:
-  root:         "./data"          # folder with training images (COCO, DIV2K, etc.)
-  image_size:   512
-  batch_size:   3                 # same pixel count as batch 12 at 256x256
+  root:         "C:/Users/bebo/Downloads/VOCtrainval_11-May-2012"
+  image_size:   256
+  batch_size:   12
   val_split:    0.05              # 5% of data used for validation
   augment:      true
   num_workers:  4                 # reduce to 0 on Windows if worker errors occur
 
 training:
-  epochs:           16            # resume epoch 6, then fine-tune 10 epochs at 512
+  epochs:           16
   lr:               0.00001
   weight_decay:     0.0001
   grad_clip:        1.0
