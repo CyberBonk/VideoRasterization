@@ -96,6 +96,7 @@ class ChromaColorizer:
     def colorize_folder(
         self, inp_dir, out_dir, ext=".png", batch_size=1,
         prefetch_workers=4, save_workers=4, max_prefetch_batches=2,
+        cancel_event=None,
     ):
         inp_dir = Path(inp_dir); out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -142,6 +143,10 @@ class ChromaColorizer:
 
             pending_saves = set()
             while inflight:
+                if cancel_event and cancel_event.is_set():
+                    status("\n[warn] Colorization cancelled by user.")
+                    break
+                    
                 batch_index, prep_futures = inflight.pop(0)
                 prepared_results = [future.result() for future in prep_futures]
                 prepared_results.sort(key=lambda item: item[0].name)

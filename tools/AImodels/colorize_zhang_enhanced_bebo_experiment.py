@@ -124,6 +124,7 @@ def colorize_dir(
     progress: bool = True,
     prefetch_workers: Optional[int] = None,
     save_workers: int = 2,
+    cancel_event=None,
     **_: object,
 ) -> None:
     _ = (models_dir, preview)
@@ -167,10 +168,16 @@ def colorize_dir(
 
     saver = ThreadPoolExecutor(max_workers=save_workers) if save_workers > 0 else None
     pending = []
+
+    # main loop
     done = 0
     t0 = time.time()
 
     while done < total:
+        if cancel_event and cancel_event.is_set():
+            print("\n[warn] Colorization cancelled by user.")
+            break
+
         batch_paths = frame_list[done : done + batch_size]
         l_orig_list, l_rs_list = _prefetch_batch(batch_paths, input_size, prefetch_workers)
         l_rs_b = torch.cat(l_rs_list, dim=0).to(device)

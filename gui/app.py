@@ -391,7 +391,8 @@ def _run_pipeline(job: dict, window: webview.Window):
                     "batch_size": batch_size,
                     "input_size": input_size,
                     "variant": model_variant,
-                    "style": "eccv16"
+                    "style": "eccv16",
+                    "cancel_event": _cancel_flag,
                 }
                 run_colorization(frames_dir, model_name, use_gpu, **opts)
             except Exception as e:
@@ -459,7 +460,7 @@ def _run_pipeline(job: dict, window: webview.Window):
         smooth_dir = None
         if smoothing_on and smooth_win >= 3:
             from video_pipeline.smoothing import apply_temporal_smoothing_step
-            opts = {"enabled": True, "window": smooth_win, "anchor": smooth_anch}
+            opts = {"enabled": True, "window_size": smooth_win, "anchor": smooth_anch, "mode": "legacy_average"}
             smooth_dir = apply_temporal_smoothing_step(frames_dir, color_dir, opts)
             check_cancel()
         emit("stage_complete", stage="smoothing")

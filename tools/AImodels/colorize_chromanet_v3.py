@@ -27,6 +27,7 @@ def colorize_dir(
     grain_amount: float = 0.0,
     style_preset: str = "realistic",
     checkpoint: Optional[Path] = None,
+    cancel_event=None,
     **_: object,
 ) -> None:
     """Colorize extracted frames using trained ChromaNet v3 checkpoint."""
@@ -67,6 +68,7 @@ def colorize_dir(
         prefetch_workers=prefetch_workers,
         save_workers=save_workers,
         max_prefetch_batches=max_prefetch_batches,
+        cancel_event=cancel_event,
     )
 
 

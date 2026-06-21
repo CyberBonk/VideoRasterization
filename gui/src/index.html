@@ -1407,6 +1407,9 @@ const CS = {
   },
 
   async goToState(name) {
+    document.querySelectorAll('video').forEach(v => {
+      try { v.pause(); } catch(e) {}
+    });
     if (_currentState) {
       const prev = document.getElementById(`state-${_currentState}`);
       prev.classList.remove('visible');
@@ -1759,6 +1762,22 @@ const CS = {
     });
     const fill = document.getElementById('main-progress-fill');
     if (fill) fill.style.width = '0%';
+    const cfill = document.getElementById('color-prog-fill');
+    if (cfill) cfill.style.width = '0%';
+
+    ['frames-done', 'frames-left', 'fps-val', 'eta-val', 'sparkline-fps'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = '—';
+    });
+    const pfc = document.getElementById('proc-frame-counter');
+    if (pfc) pfc.textContent = '0 / 0 frames';
+
+    const canvas = document.getElementById('fps-canvas');
+    if (canvas) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
     const lp = document.getElementById('live-preview-box');
     if (lp) lp.innerHTML = `
       <div class="live-preview-placeholder">

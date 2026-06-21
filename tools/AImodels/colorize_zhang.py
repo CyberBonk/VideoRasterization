@@ -95,6 +95,7 @@ def colorize_dir(
     progress: bool = True,                     # print batch progress
     prefetch_workers: Optional[int] = None,    # auto if None (I/O threads)
     save_workers: int = 0,                     # 0=save inline, >0=parallel save
+    cancel_event=None,
     **_: object,
 ) -> None:
     frames_dir = Path(frames_dir)
@@ -142,6 +143,10 @@ def colorize_dir(
     t0 = time.time()
 
     while done < total:
+        if cancel_event and cancel_event.is_set():
+            print("\n[warn] Colorization cancelled by user.")
+            break
+        
         batch_paths = frame_list[done : done + batch_size]
 
         # prefetch batch
