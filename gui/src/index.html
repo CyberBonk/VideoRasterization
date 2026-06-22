@@ -2159,20 +2159,32 @@ const CS = {
   },
 
   setCmpMode(mode) {
+    if (this._cmpMode === mode) return;
+    
+    let wasPlaying = false;
+    let currentTime = 0;
+    const oldVid = document.getElementById('cmp-vid-orig');
+    if (oldVid) {
+      wasPlaying = !oldVid.paused;
+      currentTime = oldVid.currentTime;
+    }
+    
     this._cmpMode = mode;
     document.querySelectorAll('.cmp-btn').forEach(b => {
       b.classList.toggle('active', b.dataset.mode === mode);
     });
-    this._renderComparison();
+    this._renderComparison(false, wasPlaying, currentTime);
   },
 
-  _renderComparison() {
+  _renderComparison(bustCache = true, wasPlaying = false, currentTime = 0) {
     const container = document.getElementById('cmp-content');
     const ph = document.getElementById('preview-viewer-placeholder');
     if (!container) return;
 
-    const origSrc = 'input_preview.mp4?t=' + Date.now();
-    const outSrc = 'output_preview.mp4?t=' + Date.now();
+    // Only bust cache when freshly generating, not when switching modes
+    const suffix = bustCache ? ('?t=' + Date.now()) : '';
+    const origSrc = 'input_preview.mp4' + suffix;
+    const outSrc = 'output_preview.mp4' + suffix;
 
     if (this._cmpMode === 'side') {
       container.innerHTML = `
@@ -2186,8 +2198,8 @@ const CS = {
     } else {
       container.innerHTML = `
         <div class="cmp-split-container">
-          <video id="cmp-vid-orig" muted loop></video>
-          <video id="cmp-vid-out" class="cmp-split-top" muted loop></video>
+          <video id="cmp-vid-out" muted loop></video>
+          <video id="cmp-vid-orig" class="cmp-split-top" muted loop></video>
           <div class="cmp-split-slider" id="cmp-split-slider"></div>
           <div class="cmp-label cmp-label-left">Original</div>
           <div class="cmp-label cmp-label-right">Colorized</div>
@@ -2204,6 +2216,15 @@ const CS = {
     origVid.onloadedmetadata = () => {
       const timeEl = document.getElementById('playback-time');
       if (timeEl) timeEl.textContent = `0:00 / ${formatSecs(origVid.duration || 0)}`;
+      
+      if (currentTime > 0) {
+        origVid.currentTime = currentTime;
+        outVid.currentTime = currentTime;
+      }
+      if (wasPlaying) {
+        origVid.play();
+        this.togglePlayPause(true); // update UI button
+      }
     };
     origVid.ontimeupdate = () => {
       const timeEl = document.getElementById('playback-time');
@@ -2225,7 +2246,7 @@ const CS = {
   _initSplitSlider() {
     const slider = document.getElementById('cmp-split-slider');
     const container = slider?.parentElement;
-    const topVid = document.getElementById('cmp-vid-out');
+    const topVid = document.getElementById('cmp-vid-orig');
     if (!slider || !container || !topVid) return;
 
     let dragging = false;
