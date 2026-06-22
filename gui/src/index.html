@@ -1088,7 +1088,7 @@ canvas.sparkline { width: 100%; height: 48px; display: block; }
 
           <!-- Presets -->
           <div>
-            <div class="config-section-label">Processing Preset</div>
+            <div class="config-section-label">Extraction Mode</div>
             <div class="preset-grid" id="preset-grid">
               <!-- populated by JS -->
             </div>
@@ -1096,17 +1096,19 @@ canvas.sparkline { width: 100%; height: 48px; display: block; }
 
           <div class="divider"></div>
 
-          <!-- Models -->
+                    <!-- Models -->
           <div>
             <div class="config-section-label">AI Model</div>
             <div class="model-list" id="model-list">
               <!-- populated by JS -->
             </div>
           </div>
+          
+          <div id="dynamic-model-options" style="display:none; margin-top:16px;"></div>
 
           <div class="divider"></div>
 
-          <!-- Smoothing -->
+                    <!-- Smoothing -->
           <div>
             <div class="config-section-label">Temporal Smoothing</div>
             <div class="toggle-row">
@@ -1115,17 +1117,35 @@ canvas.sparkline { width: 100%; height: 48px; display: block; }
             </div>
             <div id="smooth-controls">
               <div class="control-row">
-                <label class="control-label"><span>Window Size</span><span id="smooth-window-val">9</span></label>
-                <div class="range-wrap">
-                  <input type="range" class="range" min="3" max="21" step="2" value="9" id="smooth-window"
-                    oninput="document.getElementById('smooth-window-val').textContent=this.value">
+                <label class="control-label"><span>Smoothing Mode</span></label>
+                <select class="input" id="smooth-mode" style="height:36px;padding:0 10px;cursor:pointer;" onchange="CS.onSmoothModeChange()">
+                  <option value="flow_chroma">Flow Chroma Stabilization (Recommended)</option>
+                  <option value="legacy_average">Legacy Average Blend</option>
+                </select>
+              </div>
+              <div id="smooth-legacy-controls" style="display:none; margin-top:12px;">
+                <div class="control-row">
+                  <label class="control-label"><span>Window Size</span><span id="smooth-window-val">9</span></label>
+                  <div class="range-wrap">
+                    <input type="range" class="range" min="3" max="21" step="2" value="9" id="smooth-window"
+                      oninput="document.getElementById('smooth-window-val').textContent=this.value">
+                  </div>
                 </div>
               </div>
-              <div class="control-row">
-                <label class="control-label"><span>Anchor Weight</span><span id="smooth-anchor-val">0.65</span></label>
-                <div class="range-wrap">
-                  <input type="range" class="range" min="0" max="1" step="0.05" value="0.65" id="smooth-anchor"
-                    oninput="document.getElementById('smooth-anchor-val').textContent=parseFloat(this.value).toFixed(2)">
+              <div id="smooth-flow-controls" style="margin-top:12px;">
+                <div class="control-row">
+                  <label class="control-label"><span>Flow Mix</span><span id="smooth-mix-val">0.75</span></label>
+                  <div class="range-wrap">
+                    <input type="range" class="range" min="0" max="1" step="0.05" value="0.75" id="smooth-mix"
+                      oninput="document.getElementById('smooth-mix-val').textContent=parseFloat(this.value).toFixed(2)">
+                  </div>
+                </div>
+                <div class="control-row">
+                  <label class="control-label"><span>Motion Strength</span><span id="smooth-motion-val">1.00</span></label>
+                  <div class="range-wrap">
+                    <input type="range" class="range" min="0" max="1.5" step="0.1" value="1.0" id="smooth-motion"
+                      oninput="document.getElementById('smooth-motion-val').textContent=parseFloat(this.value).toFixed(2)">
+                  </div>
                 </div>
               </div>
             </div>
@@ -1686,7 +1706,7 @@ const CS = {
         el.classList.toggle('selected', el.dataset.presetId === id);
       });
       // Update model selection based on preset
-      if (_selectedPreset.model) this.selectModel(_selectedPreset.model, true);
+      // extraction mode only changes the extraction format
     }
   },
 
@@ -1694,7 +1714,7 @@ const CS = {
     const list = document.getElementById('model-list');
     list.innerHTML = _models.map(m => {
       const isDisabled = m.status === 'needs_checkpoint';
-      const isSelected = _selectedModel?.id === m.id || (!_selectedModel && m.id === 'colorize_zhang_siggraph17');
+      const isSelected = _selectedModel?.id === m.id || (!_selectedModel && m.id === 'colorize_zhang');
       const badge = m.status === 'ready'
         ? `<span class="badge badge-ready" style="font-size:10px;height:18px;">Ready</span>`
         : `<span class="badge badge-needs" style="font-size:10px;height:18px;">Needs Checkpoint</span>`;
@@ -1710,7 +1730,7 @@ const CS = {
           <div class="model-right">${badge}${gpuTag}</div>
         </div>`;
     }).join('');
-    if (!_selectedModel) this.selectModel('colorize_zhang_siggraph17', false);
+    if (!_selectedModel) this.selectModel('colorize_zhang', false);
   },
 
   selectModel(id, updateUI = true) {
@@ -1720,6 +1740,87 @@ const CS = {
         el.classList.toggle('selected', el.dataset.modelId === id);
       });
     }
+    this._renderDynamicModelOptions();
+  },
+
+  onSmoothModeChange() {
+    const mode = document.getElementById('smooth-mode').value;
+    document.getElementById('smooth-legacy-controls').style.display = mode === 'legacy_average' ? 'block' : 'none';
+    document.getElementById('smooth-flow-controls').style.display = mode === 'flow_chroma' ? 'block' : 'none';
+  },
+
+  _renderDynamicModelOptions() {
+    const container = document.getElementById('dynamic-model-options');
+    if (!container) return;
+    
+    if (!_selectedModel) { container.style.display = 'none'; return; }
+    
+    let html = '';
+    if (_selectedModel.id === 'colorize_zhang' || _selectedModel.id === 'enhanced_zhang_bebo') {
+      html = `
+        <div class="control-row">
+          <label class="control-label"><span>Variant</span></label>
+          <select class="input" id="model-variant" style="height:36px;padding:0 10px;cursor:pointer;">
+            <option value="siggraph17">siggraph17 (Recommended)</option>
+            <option value="eccv16">eccv16</option>
+          </select>
+        </div>
+      `;
+    } else if (_selectedModel.id === 'chromanet_v3') {
+      html = `
+        <div class="control-row">
+          <label class="control-label"><span>Style Preset</span></label>
+          <select class="input" id="style-preset" style="height:36px;padding:0 10px;cursor:pointer;">
+            <option value="realistic">Realistic</option>
+            <option value="cartoonish">Cartoonish</option>
+            <option value="brush art">Brush Art / Grainy</option>
+          </select>
+        </div>
+        <div class="control-row" style="margin-top:8px;">
+          <label class="control-label"><span>Color Strength</span></label>
+          <select class="input" id="color-strength" style="height:36px;padding:0 10px;cursor:pointer;" onchange="CS.onColorStrengthChange()">
+            <option value="0">Default</option>
+            <option value="1">Mild</option>
+            <option value="2">Vivid</option>
+            <option value="3">Max (Experimental)</option>
+            <option value="4">Custom</option>
+          </select>
+        </div>
+        <div id="chromanet-custom-controls" style="display:none; margin-top:12px; padding:12px; background:var(--surface-2); border-radius:var(--radius-md);">
+          <div class="control-row">
+            <label class="control-label"><span>Conf Filter</span><span id="custom-conf-val">1.00</span></label>
+            <div class="range-wrap">
+              <input type="range" class="range" min="0" max="1" step="0.05" value="1.0" id="custom-conf" oninput="document.getElementById('custom-conf-val').textContent=parseFloat(this.value).toFixed(2)">
+            </div>
+          </div>
+          <div class="control-row">
+            <label class="control-label"><span>Color Amount</span><span id="custom-sat-val">0.50</span></label>
+            <div class="range-wrap">
+              <input type="range" class="range" min="0" max="1" step="0.05" value="0.5" id="custom-sat" oninput="document.getElementById('custom-sat-val').textContent=parseFloat(this.value).toFixed(2)">
+            </div>
+          </div>
+          <div class="control-row">
+            <label class="control-label"><span>Film Grain</span><span id="custom-grain-val">0.00</span></label>
+            <div class="range-wrap">
+              <input type="range" class="range" min="0" max="1" step="0.05" value="0.0" id="custom-grain" oninput="document.getElementById('custom-grain-val').textContent=parseFloat(this.value).toFixed(2)">
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    
+    if (html) {
+      container.innerHTML = html;
+      container.style.display = 'block';
+    } else {
+      container.style.display = 'none';
+      container.innerHTML = '';
+    }
+  },
+
+  onColorStrengthChange() {
+    const strength = document.getElementById('color-strength').value;
+    document.getElementById('chromanet-custom-controls').style.display = strength === '4' ? 'block' : 'none';
   },
 
   toggleSmoothing() {
@@ -1750,8 +1851,41 @@ const CS = {
   async startProcessing() {
     if (!_currentJob.video_path) { toast('No video selected', 'Please import a video first.', 'warning'); return; }
 
+    const modelVariant = document.getElementById('model-variant')?.value || 'siggraph17';
+    const stylePreset = document.getElementById('style-preset')?.value || 'realistic';
+    const colorStrength = parseInt(document.getElementById('color-strength')?.value || '0');
+    
+    let confThresh = 0.3;
+    let satGain = 1.0;
+    let grainAmt = 0.0;
+    
+    if (colorStrength === 0) { confThresh = 0.3; satGain = 1.0; grainAmt = 0.0; }
+    else if (colorStrength === 1) { confThresh = 0.2; satGain = 1.15; grainAmt = 0.0; }
+    else if (colorStrength === 2) { confThresh = 0.1; satGain = 1.35; grainAmt = 0.0; }
+    else if (colorStrength === 3) { confThresh = 0.0; satGain = 1.60; grainAmt = 0.0; }
+    else if (colorStrength === 4) {
+      const confFilter = parseFloat(document.getElementById('custom-conf')?.value || '1.0');
+      const colorAmt = parseFloat(document.getElementById('custom-sat')?.value || '0.5');
+      grainAmt = parseFloat(document.getElementById('custom-grain')?.value || '0.0');
+      confThresh = 0.3 * confFilter;
+      satGain = 0.5 + 2.5 * colorAmt;
+    }
+    
+    if (stylePreset === 'cartoonish') { satGain *= 1.35; }
+    else if (stylePreset === 'brush art') { satGain *= 1.10; grainAmt = Math.max(grainAmt, 0.35); }
+
+    let contrastGain = 1.0;
+    let neutBias = 0.0;
+    if (_selectedModel?.id === 'enhanced_zhang_bebo') {
+      satGain = 1.18;
+      contrastGain = 1.06;
+      neutBias = 0.18;
+    }
+
+    const smMode = document.getElementById('smooth-mode')?.value || 'flow_chroma';
+    const flowMix = parseFloat(document.getElementById('smooth-mix')?.value || '0.75');
+    const motionStr = parseFloat(document.getElementById('smooth-motion')?.value || '1.0');
     const sw = document.getElementById('smooth-window');
-    const sa = document.getElementById('smooth-anchor');
     const sc = document.getElementById('output-codec');
 
     const job = {
@@ -1759,9 +1893,21 @@ const CS = {
       preset_id: _selectedPreset?.id || 'balanced',
       model_id: _selectedModel?.id || 'colorize_zhang_siggraph17',
       model_backend: _selectedModel?.backend || 'colorize_zhang',
+      
+      model_variant: modelVariant,
+      style_preset: stylePreset,
+      confidence_threshold: confThresh,
+      saturation_gain: satGain,
+      grain_amount: grainAmt,
+      contrast_gain: contrastGain,
+      neutralize_ab_bias: neutBias,
+
       smoothing_enabled: _smoothingOn,
+      smoothing_mode: smMode,
       smoothing_window: sw ? parseInt(sw.value) : 9,
-      smoothing_anchor: sa ? parseFloat(sa.value) : 0.65,
+      flow_mix: flowMix,
+      motion_strength: motionStr,
+      
       codec: sc ? sc.value : 'h264',
     };
     _currentJob = job;

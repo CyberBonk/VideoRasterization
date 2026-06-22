@@ -112,27 +112,15 @@ def _get_hardware_summary() -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 MODEL_REGISTRY = [
     {
-        "id": "colorize_zhang_siggraph17",
-        "name": "Zhang siggraph17",
-        "description": "Classic 2017 deep-learning colorizer. Best balance of speed and quality.",
+        "id": "colorize_zhang",
+        "name": "Legacy Zhang",
+        "description": "Classic 2016-2017 deep-learning colorizer. Choose between siggraph17 and eccv16 variants.",
         "architecture": "CNN — LAB colorspace",
         "speed_tier": 3,
         "quality_tier": 3,
         "gpu_required": False,
         "status": "ready",
         "variant": "siggraph17",
-        "backend": "colorize_zhang",
-    },
-    {
-        "id": "colorize_zhang_eccv16",
-        "name": "Zhang eccv16",
-        "description": "2016 variant. Faster, slightly lower saturation.",
-        "architecture": "CNN — LAB colorspace",
-        "speed_tier": 4,
-        "quality_tier": 2,
-        "gpu_required": False,
-        "status": "ready",
-        "variant": "eccv16",
         "backend": "colorize_zhang",
     },
     {
@@ -211,69 +199,23 @@ PRESETS_DIR.mkdir(exist_ok=True)
 
 BUILTIN_PRESETS = [
     {
-        "id": "fast_preview",
-        "name": "Fast Preview",
+        "id": "full_quality",
+        "name": "Full Quality",
         "builtin": True,
-        "model": "colorize_zhang_eccv16",
-        "input_size": 128,
-        "batch_size": 24,
-        "smoothing_enabled": False,
-        "smoothing_window": 5,
-        "smoothing_anchor": 0.65,
-        "extraction_format": "jpg",
-        "codec": "h264",
-        "speed_stars": 4,
-        "quality_stars": 2,
-        "description": "Quick evaluation and rough drafts. ~25 fps",
-    },
-    {
-        "id": "balanced",
-        "name": "Balanced",
-        "builtin": True,
-        "model": "colorize_zhang_siggraph17",
-        "input_size": 256,
-        "batch_size": 12,
-        "smoothing_enabled": True,
-        "smoothing_window": 9,
-        "smoothing_anchor": 0.65,
-        "extraction_format": "jpg",
-        "codec": "h264",
+        "extraction_format": "png",
         "speed_stars": 3,
-        "quality_stars": 3,
-        "description": "General purpose, recommended for most videos. ~12 fps",
-    },
-    {
-        "id": "high_quality",
-        "name": "High Quality",
-        "builtin": True,
-        "model": "colorize_zhang_siggraph17",
-        "input_size": 512,
-        "batch_size": 6,
-        "smoothing_enabled": True,
-        "smoothing_window": 13,
-        "smoothing_anchor": 0.60,
-        "extraction_format": "png",
-        "codec": "h265",
-        "speed_stars": 2,
-        "quality_stars": 4,
-        "description": "Archival work and final delivery. ~6 fps",
-    },
-    {
-        "id": "extreme_quality",
-        "name": "Extreme Quality",
-        "builtin": True,
-        "model": "chromanet_v3",
-        "input_size": 512,
-        "batch_size": 4,
-        "smoothing_enabled": True,
-        "smoothing_window": 21,
-        "smoothing_anchor": 0.55,
-        "extraction_format": "png",
-        "codec": "h265",
-        "speed_stars": 1,
         "quality_stars": 5,
-        "description": "Maximum quality, requires ChromaNet v3 checkpoint + CUDA. ~3 fps",
+        "description": "PNG extraction. Large size, zero compression artifacts.",
     },
+    {
+        "id": "faster_encoding",
+        "name": "Faster Encoding",
+        "builtin": True,
+        "extraction_format": "jpg",
+        "speed_stars": 5,
+        "quality_stars": 3,
+        "description": "JPG extraction. Smaller size, faster.",
+    }
 ]
 
 def _load_presets() -> list:
@@ -348,9 +290,22 @@ def _run_pipeline(job: dict, window: webview.Window):
         model_variant = job.get("model_variant", "siggraph17")
         batch_size    = int(job.get("batch_size", 12))
         input_size    = int(job.get("input_size", 256))
+        
+        # New model options
+        style_preset  = job.get("style_preset", "realistic")
+        conf_thresh   = float(job.get("confidence_threshold", 0.3))
+        sat_gain      = float(job.get("saturation_gain", 1.0))
+        grain_amt     = float(job.get("grain_amount", 0.0))
+        contrast_gain = float(job.get("contrast_gain", 1.06))
+        neut_bias     = float(job.get("neutralize_ab_bias", 0.18))
+        
+        # New smoothing options
         smoothing_on  = bool(job.get("smoothing_enabled", True))
+        smoothing_mode = job.get("smoothing_mode", "flow_chroma")
         smooth_win    = int(job.get("smoothing_window", 9))
-        smooth_anch   = float(job.get("smoothing_anchor", 0.65))
+        flow_mix      = float(job.get("flow_mix", 0.75))
+        motion_str    = float(job.get("motion_strength", 1.0))
+        
         codec         = job.get("codec", "h264")
         fps           = int(float(job.get("fps") or 24))
         use_gpu       = HAS_TORCH and (torch.cuda.is_available() if HAS_TORCH else False)
@@ -391,7 +346,12 @@ def _run_pipeline(job: dict, window: webview.Window):
                     "batch_size": batch_size,
                     "input_size": input_size,
                     "variant": model_variant,
-                    "style": "eccv16",
+                    "style_preset": style_preset,
+                    "confidence_threshold": conf_thresh,
+                    "saturation_gain": sat_gain,
+                    "grain_amount": grain_amt,
+                    "contrast_gain": contrast_gain,
+                    "neutralize_ab_bias": neut_bias,
                     "cancel_event": _cancel_flag,
                     "pause_event": _pause_flag,
                 }
@@ -461,7 +421,13 @@ def _run_pipeline(job: dict, window: webview.Window):
         smooth_dir = None
         if smoothing_on and smooth_win >= 3:
             from video_pipeline.smoothing import apply_temporal_smoothing_step
-            opts = {"enabled": True, "window_size": smooth_win, "anchor": smooth_anch, "mode": "legacy_average"}
+            opts = {
+                "enabled": True, 
+                "mode": smoothing_mode,
+                "window_size": smooth_win, 
+                "flow_mix": flow_mix,
+                "motion_strength": motion_str
+            }
             smooth_dir = apply_temporal_smoothing_step(frames_dir, color_dir, opts)
             check_cancel()
         emit("stage_complete", stage="smoothing")
