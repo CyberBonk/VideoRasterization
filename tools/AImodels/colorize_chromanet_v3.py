@@ -9,7 +9,7 @@ from tools.console import status
 
 ROOT = Path(__file__).resolve().parents[2]
 CHROMANET_ROOT = ROOT / "ChromaNet_v3_complete" / "chromanet_v3"
-DEFAULT_CHECKPOINT = ROOT / "checkpoints" / "chromanet" / "checkpoint_latest.pth"
+DEFAULT_CHECKPOINT = ROOT / "ChromaNet_v3_complete" / "chromanet_v3" / "checkpoints" / "checkpoint_latest.pth"
 
 
 def colorize_dir(
