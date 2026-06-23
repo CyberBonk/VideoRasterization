@@ -9,7 +9,17 @@ from tools.console import status
 
 ROOT = Path(__file__).resolve().parents[2]
 CHROMANET_ROOT = ROOT / "ChromaNet_v3_complete" / "chromanet_v3"
-DEFAULT_CHECKPOINT = ROOT / "ChromaNet_v3_complete" / "chromanet_v3" / "checkpoints" / "checkpoint_latest.pth"
+DEFAULT_CHECKPOINT_CANDIDATES = [
+    ROOT / "checkpoints" / "chromanet" / "checkpoint_latest.pth",
+    ROOT / "ChromaNet_v3_complete" / "chromanet_v3" / "checkpoints" / "checkpoint_latest.pth",
+]
+
+
+def _resolve_default_checkpoint() -> Path:
+    for candidate in DEFAULT_CHECKPOINT_CANDIDATES:
+        if candidate.exists():
+            return candidate
+    return DEFAULT_CHECKPOINT_CANDIDATES[0]
 
 
 def colorize_dir(
@@ -34,7 +44,7 @@ def colorize_dir(
 ) -> None:
     """Colorize extracted frames using trained ChromaNet v3 checkpoint."""
     _ = models_dir
-    checkpoint_path = Path(checkpoint) if checkpoint else DEFAULT_CHECKPOINT
+    checkpoint_path = Path(checkpoint) if checkpoint else _resolve_default_checkpoint()
     if not checkpoint_path.exists():
         raise FileNotFoundError(
             f"ChromaNet checkpoint not found: {checkpoint_path}. Train model first."

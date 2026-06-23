@@ -6,3 +6,5 @@ matplotlib>=3.8
 opencv-python>=4.10
 Pillow>=10.3
 ipython>=8.26
+pywebview>=5.1
+psutil>=6.0

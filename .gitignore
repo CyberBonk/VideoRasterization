@@ -20,3 +20,10 @@ training_instcolorization_full_256.log
 graphify-out/
 tools/AImodels/DataSets/
 tools/AImodels/instcolorization2025/checkpoints/
+/.local_py
+/.codex_tmp
+gui/history.json
+gui/src/_preview_frame.jpg
+benchmark_sources_new/
+temp_benchmark_rebuild.py
+nul

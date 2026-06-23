@@ -1,10 +1,20 @@
 # VideoRasterization
 
-VideoRasterization is a Python CLI pipeline for turning grayscale videos into colorized videos. It extracts video frames, runs one of the available AI colorization backends, optionally applies temporal smoothing, creates a preview report, and rebuilds the final video with source audio preserved.
+VideoRasterization is a Python video-colorization project for turning grayscale videos into colorized videos. It includes:
+
+- an interactive CLI pipeline,
+- a desktop GUI host,
+- multiple AI backends,
+- optional temporal smoothing,
+- custom ChromaNet training code,
+- and benchmark/reporting helpers.
+
+At runtime, the pipeline extracts frames, runs one of the available AI colorization backends, optionally applies temporal smoothing, creates a preview report, and rebuilds the final video with source audio preserved.
 
 ## Current Features
 
 - Interactive CLI entrypoint: `main.py`
+- Desktop GUI host: `gui/app.py`
 - Frame extraction through bundled FFmpeg from `imageio-ffmpeg`
 - Extraction modes:
   - Full quality PNG frames
@@ -42,6 +52,7 @@ VideoRasterization is a Python CLI pipeline for turning grayscale videos into co
   - preserves current-frame luminance to avoid blur
 - Preview report generation
 - Final video rebuild with original audio copied back when available
+- Centralized checkpoint layout under `checkpoints/`
 - Colored console status:
   - success/progress in green
   - warnings in yellow
@@ -88,6 +99,11 @@ Install project dependencies:
 & "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe" -m pip install -r requirements.txt
 ```
 
+This installs project-side packages including:
+
+- `pywebview` for the desktop GUI host
+- `psutil` for richer system metrics inside the GUI
+
 Check CUDA:
 
 ```powershell
@@ -108,6 +124,22 @@ Start the interactive pipeline:
 ```powershell
 & "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe" .\main.py
 ```
+
+## Run The Desktop GUI
+
+Preferred launcher:
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe" .\gui\app.py
+```
+
+Convenience launcher:
+
+```powershell
+.\VideoRasterization.bat
+```
+
+The batch launcher prefers the direct Python 3.11 path and falls back to `py -3.11` only if needed.
 
 The CLI asks for:
 
@@ -209,11 +241,16 @@ Checkpoints are ignored by git because they are large. To share a trained model 
 
 Useful checkpoint notes:
 
-- `checkpoints/chromanet/checkpoint_latest.pth` is what ChromaNet uses by default.
+- `checkpoints/chromanet/checkpoint_latest.pth` is the preferred default checkpoint used by the ChromaNet backend.
 - `checkpoints/instcolorization/coco_full_256_train2017/latest_net_G.pth` is what InstColorization uses by default.
 - `checkpoints/zhang/*.pth` holds the Zhang/ECCV/SIGGRAPH base weights.
 - `checkpoint_epochXXX.pth` stores a specific epoch.
 - `checkpoint_epochXXX_best.pth` stores best validation checkpoints when generated.
+
+Compatibility note:
+
+- the repo still tolerates the older in-tree ChromaNet checkpoint path under `ChromaNet_v3_complete/chromanet_v3/checkpoints/`
+- but the centralized top-level `checkpoints/` layout is the retained archive layout
 
 Tracked note files:
 
@@ -297,6 +334,20 @@ checkpoints/chromanet/
   - `vivid`
   - `max / experimental`
   - custom confidence filter near `0.00`
+
+## Benchmarking
+
+Benchmark harness:
+
+```text
+scripts/benchmark_colorization_suite.py
+```
+
+This script builds short fixed scene clips, converts them to grayscale, runs selected backends, applies smoothing, and saves benchmark artifacts under:
+
+```text
+reports/benchmark_suite_20260622_fresh_sources/
+```
 
 ## External Research Findings
 

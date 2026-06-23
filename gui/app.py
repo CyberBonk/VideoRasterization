@@ -161,8 +161,21 @@ MODEL_REGISTRY = [
     },
 ]
 
+CHROMANET_CHECKPOINT_CANDIDATES = [
+    ROOT / "checkpoints" / "chromanet" / "checkpoint_latest.pth",
+    ROOT / "ChromaNet_v3_complete" / "chromanet_v3" / "checkpoints" / "checkpoint_latest.pth",
+]
+
+
+def _resolve_chromanet_checkpoint() -> Path:
+    for candidate in CHROMANET_CHECKPOINT_CANDIDATES:
+        if candidate.exists():
+            return candidate
+    return CHROMANET_CHECKPOINT_CANDIDATES[0]
+
+
 def _check_model_statuses():
-    checkpoint = ROOT / "ChromaNet_v3_complete" / "chromanet_v3" / "checkpoints" / "checkpoint_latest.pth"
+    checkpoint = _resolve_chromanet_checkpoint()
     for m in MODEL_REGISTRY:
         if m["id"] == "chromanet_v3":
             m["status"] = "ready" if checkpoint.exists() else "needs_checkpoint"
